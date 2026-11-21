@@ -103,37 +103,91 @@ fn steam_search(title: &str) -> Option<u32> {
     best.map(|(_, id)| id)
 }
 
-/// Download missing art for one game. Returns true if anything new arrived.
+/// Download missing art for one game: Steam store art, then a Lutris.net (IGDB) cover, then the
+/// icon inside the game's .exe (offline). Returns true if anything new arrived.
 pub fn fetch_for(g: &Game) -> bool {
-    let need: Vec<Art> = [Art::Cover, Art::Hero, Art::Logo]
-        .into_iter()
-        .filter(|k| !art_path(&g.id, *k).is_file())
-        .collect();
-    if need.is_empty() {
+    let missing = |k: Art| !art_path(&g.id, k).is_file();
+    if !missing(Art::Cover) && !missing(Art::Hero) && !missing(Art::Logo) {
         return false;
     }
+    let mut any = false;
     let appid = match g.steam_appid {
         Some(a) => Some(a),
         None if g.runner != RunnerKind::Steam => steam_lookup(&g.name),
         None => None,
     };
-    let Some(appid) = appid else { return false };
-    let base = format!("https://shared.steamstatic.com/store_item_assets/steam/apps/{appid}");
-    let mut any = false;
-    for kind in need {
-        let files: &[&str] = match kind {
-            Art::Cover => &["library_600x900_2x.jpg", "library_600x900.jpg"],
-            Art::Hero => &["library_hero.jpg"],
-            Art::Logo => &["logo.png"],
-        };
-        for f in files {
-            if curl_to(&format!("{base}/{f}"), &art_path(&g.id, kind)) {
-                any = true;
-                break;
+    if let Some(appid) = appid {
+        let base = format!("https://shared.steamstatic.com/store_item_assets/steam/apps/{appid}");
+        for kind in [Art::Cover, Art::Hero, Art::Logo] {
+            if !missing(kind) {
+                continue;
+            }
+            let files: &[&str] = match kind {
+                Art::Cover => &["library_600x900_2x.jpg", "library_600x900.jpg"],
+                Art::Hero => &["library_hero.jpg"],
+                Art::Logo => &["logo.png"],
+            };
+            for f in files {
+                if curl_to(&format!("{base}/{f}"), &art_path(&g.id, kind)) {
+                    any = true;
+                    break;
+                }
             }
         }
     }
+    if missing(Art::Cover) && g.runner != RunnerKind::Steam {
+        if let Some(url) = lutris_cover(&g.name) {
+            any |= curl_to(&url, &art_path(&g.id, Art::Cover));
+        }
+    }
+    any |= exe_icon(g);
     any
+}
+
+/// The .exe's own icon as the game's logo (shown on the tile when there's no cover).
+pub fn exe_icon(g: &Game) -> bool {
+    let dst = art_path(&g.id, Art::Logo);
+    // Only as the tile fallback: with a cover, the detail pane would show the icon instead of the title.
+    if dst.is_file() || !g.runner.is_windows() || art_path(&g.id, Art::Cover).is_file() {
+        return false;
+    }
+    match &g.exe {
+        Some(exe) => crate::peicon::extract(exe, &dst, 32),
+        None => false,
+    }
+}
+
+/// Cover from Lutris.net (IGDB art) for an exact title match.
+pub fn lutris_cover(title: &str) -> Option<String> {
+    let q: String = title
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect();
+    let url = format!("https://lutris.net/api/games?search={q}");
+    let out = Command::new("curl")
+        .args([
+            "-fsL",
+            "--max-time",
+            "15",
+            "-A",
+            "hearth-game-launcher",
+            &url,
+        ])
+        .output()
+        .ok()?;
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    let want = squash(title);
+    v.get("results")?.as_array()?.iter().find_map(|r| {
+        let name = r.get("name")?.as_str()?;
+        let cover = r.get("coverart")?.as_str()?;
+        (squash(name) == want && cover.starts_with("https://")).then(|| cover.to_string())
+    })
 }
 
 /// Fill in art for every game that lacks a cover. Returns ids that changed.
@@ -143,10 +197,12 @@ pub fn fetch_missing(games: &[Game]) -> Vec<String> {
         .iter()
         .filter(|g| {
             g.cover.is_none()
-                && (!art_path(&g.id, Art::Cover).is_file() || !art_path(&g.id, Art::Hero).is_file())
+                && [Art::Cover, Art::Hero, Art::Logo]
+                    .iter()
+                    .any(|k| !art_path(&g.id, *k).is_file())
         })
         .filter(|g| {
-            let marker = art_path(&g.id, Art::Cover).with_file_name(".looked-up");
+            let marker = art_path(&g.id, Art::Cover).with_file_name(".looked-up-2");
             if marker.exists() {
                 return false;
             }
@@ -161,5 +217,5 @@ pub fn fetch_missing(games: &[Game]) -> Vec<String> {
 
 /// Forget earlier lookups (after a rename).
 pub fn reset_lookup(id: &str) {
-    let _ = std::fs::remove_file(art_path(id, Art::Cover).with_file_name(".looked-up"));
+    let _ = std::fs::remove_file(art_path(id, Art::Cover).with_file_name(".looked-up-2"));
 }

@@ -7,6 +7,7 @@ mod install;
 mod launch;
 mod library;
 mod model;
+mod peicon;
 mod runners;
 mod scan;
 mod ui;

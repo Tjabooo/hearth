@@ -30,7 +30,8 @@ per-game Proton/Wine, MangoHud, gamemode and gamescope settings, and a one-click
 - **Play time** counted per game, including launchers that fork and exit (every process started for
   the game is tracked), merged with what Steam and Lutris already counted.
 - **Cover art** from Steam's library art; for non-Steam games hearth looks the title up on the Steam
-  store (only the title is sent; can be turned off).
+  store, then Lutris.net (only the title is sent; can be turned off). Games with no cover anywhere
+  show the icon pulled out of their own `.exe`.
 - **CLI** for scripts and app launchers: `hearth launch <id>`, `hearth list`, `hearth scan`.
 
 ## Install
