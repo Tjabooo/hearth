@@ -212,13 +212,32 @@ pub fn steam_art(root: &Path, appid: u32) -> Vec<(Art, PathBuf)> {
     out
 }
 
-/// appid -> (seconds played, last played) from every Steam account's localconfig.vdf (max per app).
+/// Every account signed in on this Steam (config/loginusers.vdf), as userdata folder names
+/// (32-bit account ids). None = no login list, so all userdata folders count.
+fn steam_accounts(root: &Path) -> Option<Vec<String>> {
+    let v = vdf::parse(&read(&root.join("config/loginusers.vdf"))?);
+    let users = v.get("users")?.map()?;
+    Some(
+        users
+            .keys()
+            .filter_map(|id64| id64.parse::<u64>().ok())
+            .map(|id64| (id64.wrapping_sub(76_561_197_960_265_728) & 0xffff_ffff).to_string())
+            .collect(),
+    )
+}
+
+/// appid -> (seconds played summed over every signed-in account, latest last-played).
 fn steam_playtime(root: &Path) -> BTreeMap<u32, (u64, i64)> {
     let mut out: BTreeMap<u32, (u64, i64)> = BTreeMap::new();
     let Ok(rd) = std::fs::read_dir(root.join("userdata")) else {
         return out;
     };
+    let accounts = steam_accounts(root);
     for e in rd.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        if name == "0" || accounts.as_ref().is_some_and(|a| !a.contains(&name)) {
+            continue;
+        }
         let Some(t) = read(&e.path().join("config/localconfig.vdf")) else {
             continue;
         };
@@ -240,7 +259,7 @@ fn steam_playtime(root: &Path) -> BTreeMap<u32, (u64, i64)> {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
             let ent = out.entry(id).or_default();
-            ent.0 = ent.0.max(mins * 60);
+            ent.0 += mins * 60;
             ent.1 = ent.1.max(last);
         }
     }

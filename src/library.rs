@@ -314,7 +314,12 @@ fn import_stats(id: &str, f: &crate::scan::Found) {
     let mut s = load_stats(id);
     let before = s.clone();
     // Imported numbers come from another launcher's own counter: take the larger one, never add.
-    s.imported_secs = s.imported_secs.max(f.imported_secs);
+    // Steam's numbers are the source of truth for Steam games (so a signed-out account drops out).
+    s.imported_secs = if f.game.source == Source::Steam && f.game.lutris_slug.is_none() {
+        f.imported_secs
+    } else {
+        s.imported_secs.max(f.imported_secs)
+    };
     s.last_played = s.last_played.max(f.last_played);
     if s != before {
         let _ = save_stats(id, &s);
