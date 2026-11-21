@@ -12,7 +12,10 @@ impl Vdf {
     /// Case-insensitive child lookup.
     pub fn get(&self, key: &str) -> Option<&Vdf> {
         match self {
-            Vdf::Map(m) => m.iter().find(|(k, _)| k.eq_ignore_ascii_case(key)).map(|(_, v)| v),
+            Vdf::Map(m) => m
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(key))
+                .map(|(_, v)| v),
             Vdf::Str(_) => None,
         }
     }
@@ -136,8 +139,16 @@ fn parse_map(t: &[Tok], i: &mut usize) -> BTreeMap<String, Vdf> {
 mod tests {
     #[test]
     fn parses() {
-        let v = super::parse("\"AppState\"\n{\n\t\"appid\"\t\t\"730\"\n\t\"name\" \"Counter-Strike 2\" // c\n\t\"sub\" { \"a\" \"b\" }\n}");
-        assert_eq!(v.path(&["appstate", "appid"]).and_then(|v| v.str()), Some("730"));
-        assert_eq!(v.path(&["AppState", "sub", "a"]).and_then(|v| v.str()), Some("b"));
+        let v = super::parse(
+            "\"AppState\"\n{\n\t\"appid\"\t\t\"730\"\n\t\"name\" \"Counter-Strike 2\" // c\n\t\"sub\" { \"a\" \"b\" }\n}",
+        );
+        assert_eq!(
+            v.path(&["appstate", "appid"]).and_then(|v| v.str()),
+            Some("730")
+        );
+        assert_eq!(
+            v.path(&["AppState", "sub", "a"]).and_then(|v| v.str()),
+            Some("b")
+        );
     }
 }

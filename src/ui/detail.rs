@@ -1,12 +1,12 @@
 //! The right-hand pane: hero art, PLAY/STOP, stats, effective launch options, actions.
 
-use gtk4 as gtk;
-use super::{button, dialogs, label, settings, AppRc};
+use super::{AppRc, button, dialogs, label, settings};
 use crate::config::{self, tilde};
 use crate::library::{self, Art};
-use crate::model::{fmt_ago, fmt_playtime, Game, RunnerKind};
+use crate::model::{Game, RunnerKind, fmt_ago, fmt_playtime};
 use crate::{launch, runners};
 use gtk::{glib, prelude::*};
+use gtk4 as gtk;
 
 const HERO_H: i32 = 250;
 
@@ -53,7 +53,8 @@ fn hero(app: &AppRc, g: &Game) -> gtk::Overlay {
             pic.add_css_class("hero-blur");
         }
         let p2 = pic.clone();
-        app.images.load(&pic, &p, 960, 420, move |ok| p2.set_visible(ok));
+        app.images
+            .load(&pic, &p, 960, 420, move |ok| p2.set_visible(ok));
     }
     let shade = gtk::Box::new(gtk::Orientation::Vertical, 0);
     shade.add_css_class("hero-shade");
@@ -64,7 +65,8 @@ fn hero(app: &AppRc, g: &Game) -> gtk::Overlay {
     let title_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
     title_box.set_valign(gtk::Align::End);
     title_box.set_halign(gtk::Align::Start);
-    let logo = library::art(g, Art::Logo).filter(|_| g.runner != RunnerKind::Command && library::art(g, Art::Hero).is_some());
+    let logo = library::art(g, Art::Logo)
+        .filter(|_| g.runner != RunnerKind::Command && library::art(g, Art::Hero).is_some());
     let title = label(&g.name, "hero-title");
     title.set_wrap(true);
     title.set_max_width_chars(26);
@@ -203,13 +205,26 @@ fn body(app: &AppRc, g: &Game) -> gtk::Box {
     if let Some(p) = &g.prefix {
         add("PREFIX", &tilde(p), "mono");
     } else if g.runner.is_windows() {
-        add("PREFIX", &format!("{} (new)", tilde(&launch::default_prefix(&app.cfg.borrow(), g))), "mono");
+        add(
+            "PREFIX",
+            &format!(
+                "{} (new)",
+                tilde(&launch::default_prefix(&app.cfg.borrow(), g))
+            ),
+            "mono",
+        );
     }
     if let Some(d) = &g.install_dir {
         add("FOLDER", &tilde(d), "mono");
     }
     if let Some(e) = &g.exe {
-        add("EXE", &e.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(), "mono");
+        add(
+            "EXE",
+            &e.file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            "mono",
+        );
     }
     b.append(&grid);
 
@@ -226,15 +241,30 @@ fn body(app: &AppRc, g: &Game) -> gtk::Box {
         lamps.set_row_spacing(5);
         lamps.set_column_spacing(5);
         lamps.set_homogeneous(false);
-        let mut items: Vec<(&str, bool)> = vec![("MANGOHUD", o.mangohud == Some(true)), ("GAMEMODE", o.gamemode == Some(true)), ("GAMESCOPE", o.gamescope == Some(true))];
+        let mut items: Vec<(&str, bool)> = vec![
+            ("MANGOHUD", o.mangohud == Some(true)),
+            ("GAMEMODE", o.gamemode == Some(true)),
+            ("GAMESCOPE", o.gamescope == Some(true)),
+        ];
         if !app.cfg.borrow().wrapper.is_empty() {
             items.push(("WRAPPER", o.use_wrapper == Some(true)));
         }
         if g.runner == RunnerKind::Proton {
-            items.push(("FSR4", o.fsr4 == Some(true) || (o.fsr4.is_none() && std::env::var("PROTON_FSR4_UPGRADE").map(|v| v == "1").unwrap_or(false))));
+            items.push((
+                "FSR4",
+                o.fsr4 == Some(true)
+                    || (o.fsr4.is_none()
+                        && std::env::var("PROTON_FSR4_UPGRADE")
+                            .map(|v| v == "1")
+                            .unwrap_or(false)),
+            ));
             items.push(("WAYLAND", o.wine_wayland == Some(true)));
         }
-        if o.prelaunch.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false) {
+        if o.prelaunch
+            .as_deref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+        {
             items.push(("PRE-LAUNCH", true));
         }
         if !o.env.is_empty() {
@@ -265,49 +295,103 @@ fn body(app: &AppRc, g: &Game) -> gtk::Box {
     };
     let a = app.clone();
     let id = g.id.clone();
-    if let Some(dir) = g.install_dir.clone().or_else(|| g.exe.as_ref().and_then(|e| e.parent().map(|p| p.to_path_buf()))) {
-        act("󰉋 FOLDER", "Open the game folder", "", Box::new(move || super::open_path(&dir)));
+    if let Some(dir) = g.install_dir.clone().or_else(|| {
+        g.exe
+            .as_ref()
+            .and_then(|e| e.parent().map(|p| p.to_path_buf()))
+    }) {
+        act(
+            "󰉋 FOLDER",
+            "Open the game folder",
+            "",
+            Box::new(move || super::open_path(&dir)),
+        );
     }
     let logp = config::log_dir().join(format!("{}.log", g.id));
     if logp.is_file() {
-        act("󰦪 LOG", "Open the last launch log", "", Box::new(move || super::open_path(&logp)));
+        act(
+            "󰦪 LOG",
+            "Open the last launch log",
+            "",
+            Box::new(move || super::open_path(&logp)),
+        );
     }
     {
         let (a, id) = (a.clone(), id.clone());
-        act("󰆍 COMMAND", "Show the exact launch command", "", Box::new(move || dialogs::show_command(&a, &id)));
+        act(
+            "󰆍 COMMAND",
+            "Show the exact launch command",
+            "",
+            Box::new(move || dialogs::show_command(&a, &id)),
+        );
     }
     if g.runner.is_windows() {
         {
             let (a, id) = (a.clone(), id.clone());
-            act("󰐊 RUN .EXE", "Run another .exe (patch, trainer, config tool) in this game's prefix", "", Box::new(move || dialogs::run_exe_in_prefix(&a, &id)));
+            act(
+                "󰐊 RUN .EXE",
+                "Run another .exe (patch, trainer, config tool) in this game's prefix",
+                "",
+                Box::new(move || dialogs::run_exe_in_prefix(&a, &id)),
+            );
         }
         if let Some(p) = g.prefix.clone().filter(|p| p.is_dir()) {
-            act("󰉋 PREFIX", "Open the Wine prefix folder", "", Box::new(move || super::open_path(&p)));
+            act(
+                "󰉋 PREFIX",
+                "Open the Wine prefix folder",
+                "",
+                Box::new(move || super::open_path(&p)),
+            );
         }
-        for (t, tool, tip) in [("WINECFG", "winecfg", "Wine configuration for this prefix"), ("REGEDIT", "regedit", "Registry editor for this prefix"), ("WINETRICKS", "winetricks", "Install runtimes/fonts into this prefix")] {
+        for (t, tool, tip) in [
+            ("WINECFG", "winecfg", "Wine configuration for this prefix"),
+            ("REGEDIT", "regedit", "Registry editor for this prefix"),
+            (
+                "WINETRICKS",
+                "winetricks",
+                "Install runtimes/fonts into this prefix",
+            ),
+        ] {
             let (a, id) = (a.clone(), id.clone());
             act(t, tip, "", Box::new(move || prefix_tool(&a, &id, tool)));
         }
     }
     {
         let (a, id) = (a.clone(), id.clone());
-        act("󰋩 COVER", "Pick a new cover image", "", Box::new(move || dialogs::change_cover(&a, &id)));
+        act(
+            "󰋩 COVER",
+            "Pick a new cover image",
+            "",
+            Box::new(move || dialogs::change_cover(&a, &id)),
+        );
     }
     {
         let (a, id) = (a.clone(), id.clone());
         let hidden = g.hidden;
-        act(if hidden { "󰈈 UNHIDE" } else { "󰈉 HIDE" }, "Hide from the library (kept under HIDDEN)", "", Box::new(move || edit(&a, &id, |g| g.hidden = !g.hidden)));
+        act(
+            if hidden { "󰈈 UNHIDE" } else { "󰈉 HIDE" },
+            "Hide from the library (kept under HIDDEN)",
+            "",
+            Box::new(move || edit(&a, &id, |g| g.hidden = !g.hidden)),
+        );
     }
     {
         let (a, id) = (a.clone(), id.clone());
-        act("󰆴 REMOVE", "Remove from the library (files stay on disk)", "danger", Box::new(move || dialogs::confirm_remove(&a, &id)));
+        act(
+            "󰆴 REMOVE",
+            "Remove from the library (files stay on disk)",
+            "danger",
+            Box::new(move || dialogs::confirm_remove(&a, &id)),
+        );
     }
     b.append(&acts);
     b
 }
 
 fn prefix_tool(app: &AppRc, id: &str, tool: &str) {
-    let Some(g) = app.lib.borrow().get(id).cloned() else { return };
+    let Some(g) = app.lib.borrow().get(id).cloned() else {
+        return;
+    };
     let cfg = app.cfg.borrow().clone();
     let tool = tool.to_string();
     let a = app.clone();

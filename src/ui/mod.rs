@@ -13,12 +13,12 @@ mod images;
 mod settings;
 mod settings_search;
 
-use gtk4 as gtk;
 use crate::config::Config;
 use crate::install;
 use crate::library::{self, Library};
-use crate::model::{fmt_playtime, squash, Game, RunnerKind, Source, Stats};
+use crate::model::{Game, RunnerKind, Source, Stats, fmt_playtime, squash};
 use gtk::{gdk, gio, glib, prelude::*};
+use gtk4 as gtk;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -41,7 +41,16 @@ pub enum Filter {
 }
 
 impl Filter {
-    const ALL: [Filter; 8] = [Filter::All, Filter::Favorites, Filter::Recent, Filter::Steam, Filter::Windows, Filter::Linux, Filter::Apps, Filter::Hidden];
+    const ALL: [Filter; 8] = [
+        Filter::All,
+        Filter::Favorites,
+        Filter::Recent,
+        Filter::Steam,
+        Filter::Windows,
+        Filter::Linux,
+        Filter::Apps,
+        Filter::Hidden,
+    ];
     fn label(self) -> &'static str {
         match self {
             Filter::All => "ALL GAMES",
@@ -67,7 +76,10 @@ impl Filter {
         }
     }
     fn from_key(k: &str) -> Filter {
-        Filter::ALL.into_iter().find(|f| f.key() == k).unwrap_or(Filter::All)
+        Filter::ALL
+            .into_iter()
+            .find(|f| f.key() == k)
+            .unwrap_or(Filter::All)
     }
     fn matches(self, g: &Game, st: &Stats) -> bool {
         if self == Filter::Hidden {
@@ -79,7 +91,9 @@ impl Filter {
         match self {
             Filter::All | Filter::Hidden => true,
             Filter::Favorites => g.favorite,
-            Filter::Recent => st.last_played > 0 && crate::model::now() - st.last_played < 86_400 * 45,
+            Filter::Recent => {
+                st.last_played > 0 && crate::model::now() - st.last_played < 86_400 * 45
+            }
             Filter::Steam => g.runner == RunnerKind::Steam,
             Filter::Windows => g.runner.is_windows(),
             Filter::Linux => g.runner == RunnerKind::Native,
@@ -151,7 +165,10 @@ pub struct App {
 pub type AppRc = Rc<App>;
 
 pub fn run() -> i32 {
-    let app = gtk::Application::builder().application_id(APP_ID).flags(gio::ApplicationFlags::NON_UNIQUE).build();
+    let app = gtk::Application::builder()
+        .application_id(APP_ID)
+        .flags(gio::ApplicationFlags::NON_UNIQUE)
+        .build();
     app.connect_activate(build);
     let code = app.run_with_args::<&str>(&[]);
     if code == glib::ExitCode::SUCCESS {
@@ -162,7 +179,9 @@ pub fn run() -> i32 {
 }
 
 fn load_css() {
-    let Some(display) = gdk::Display::default() else { return };
+    let Some(display) = gdk::Display::default() else {
+        return;
+    };
     if let Some(s) = gtk::Settings::default() {
         s.set_gtk_application_prefer_dark_theme(true);
     }
@@ -193,10 +212,16 @@ fn build(gapp: &gtk::Application) {
     let cfg = Config::load();
     let lib = Library::load();
 
-    let window = gtk::ApplicationWindow::builder().application(gapp).title("Hearth").build();
+    let window = gtk::ApplicationWindow::builder()
+        .application(gapp)
+        .title("Hearth")
+        .build();
     window.add_css_class("hearth");
     let (w, h) = (cfg.ui.width, cfg.ui.height);
-    window.set_default_size(if w > 400 { w } else { 1500 }, if h > 300 { h } else { 900 });
+    window.set_default_size(
+        if w > 400 { w } else { 1500 },
+        if h > 300 { h } else { 900 },
+    );
     if cfg.ui.maximized {
         window.maximize();
     }
@@ -223,7 +248,9 @@ fn build(gapp: &gtk::Application) {
     let add_btn = button("󰐕  ADD GAME", "");
     add_btn.set_tooltip_text(Some("Add a game by picking its .exe, AppImage or script"));
     let install_btn = button("󰇚  INSTALL FROM .EXE", "accent");
-    install_btn.set_tooltip_text(Some("Run a Windows installer (FitGirl, DODI, GOG…) and add the game when it's done"));
+    install_btn.set_tooltip_text(Some(
+        "Run a Windows installer (FitGirl, DODI, GOG…) and add the game when it's done",
+    ));
     let prefs_btn = button("󰒓", "icon flat");
     prefs_btn.set_tooltip_text(Some("Preferences (Ctrl+,)"));
     let close_btn = button("󰅖", "close");
@@ -296,7 +323,10 @@ fn build(gapp: &gtk::Application) {
     empty.set_valign(gtk::Align::Center);
     empty.set_halign(gtk::Align::Center);
     empty.append(&label("NOTHING HERE", "empty-big"));
-    let empty_hint = label("No games match. Try SCAN, ADD GAME or INSTALL FROM .EXE.", "empty");
+    let empty_hint = label(
+        "No games match. Try SCAN, ADD GAME or INSTALL FROM .EXE.",
+        "empty",
+    );
     empty.append(&empty_hint);
     let grid_stack = gtk::Stack::new();
     grid_stack.add_named(&grid_scroll, Some("grid"));
@@ -345,7 +375,13 @@ fn build(gapp: &gtk::Application) {
     let jobs_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let foot = gtk::Box::new(gtk::Orientation::Horizontal, 14);
     foot.add_css_class("footbar");
-    for (k, v) in [("ENTER", "play"), ("/", "search"), ("F5", "scan"), ("CTRL ,", "preferences"), ("ESC", "clear")] {
+    for (k, v) in [
+        ("ENTER", "play"),
+        ("/", "search"),
+        ("F5", "scan"),
+        ("CTRL ,", "preferences"),
+        ("ESC", "clear"),
+    ] {
         let b = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         b.append(&label(k, "key"));
         b.append(&label(v, "hint"));
@@ -359,7 +395,10 @@ fn build(gapp: &gtk::Application) {
     window.set_child(Some(&root));
 
     let filter = Filter::from_key(&cfg.ui.view);
-    let sort = Sort::ALL.into_iter().find(|s| s.key() == cfg.ui.sort).unwrap_or(Sort::Name);
+    let sort = Sort::ALL
+        .into_iter()
+        .find(|s| s.key() == cfg.ui.sort)
+        .unwrap_or(Sort::Name);
     sort_dd.set_selected(Sort::ALL.iter().position(|s| *s == sort).unwrap_or(0) as u32);
 
     let app: AppRc = Rc::new(App {
@@ -406,7 +445,8 @@ fn build(gapp: &gtk::Application) {
     {
         let a = app.clone();
         sort_dd.connect_selected_notify(move |dd| {
-            a.sort.set(Sort::ALL[dd.selected() as usize % Sort::ALL.len()]);
+            a.sort
+                .set(Sort::ALL[dd.selected() as usize % Sort::ALL.len()]);
             refresh_grid(&a);
         });
     }
@@ -467,7 +507,9 @@ fn build(gapp: &gtk::Application) {
         let a = app.clone();
         keys.connect_key_pressed(move |_, key, _, mods| {
             let ctrl = mods.contains(gdk::ModifierType::CONTROL_MASK);
-            let in_text = gtk::prelude::GtkWindowExt::focus(&a.window).map(|f| f.is::<gtk::Text>() || f.is::<gtk::TextView>()).unwrap_or(false);
+            let in_text = gtk::prelude::GtkWindowExt::focus(&a.window)
+                .map(|f| f.is::<gtk::Text>() || f.is::<gtk::TextView>())
+                .unwrap_or(false);
             match key {
                 gdk::Key::F5 => {
                     scan(&a, false);
@@ -537,15 +579,25 @@ fn visible_games(app: &App) -> Vec<Game> {
         .games
         .iter()
         .filter(|g| f.matches(g, &lib.stats(&g.id)))
-        .filter(|g| q.is_empty() || squash(&g.name).contains(&q) || g.name.to_lowercase().contains(qlower.trim()))
+        .filter(|g| {
+            q.is_empty()
+                || squash(&g.name).contains(&q)
+                || g.name.to_lowercase().contains(qlower.trim())
+        })
         .cloned()
         .collect();
     let st = |g: &Game| lib.stats(&g.id);
-    let sort = if f == Filter::Recent { Sort::LastPlayed } else { app.sort.get() };
+    let sort = if f == Filter::Recent {
+        Sort::LastPlayed
+    } else {
+        app.sort.get()
+    };
     match sort {
         Sort::Name => v.sort_by_key(|g| g.name.to_lowercase()),
         Sort::LastPlayed => v.sort_by_key(|g| (-st(g).last_played, g.name.to_lowercase())),
-        Sort::Playtime => v.sort_by_key(|g| (std::cmp::Reverse(st(g).total_secs()), g.name.to_lowercase())),
+        Sort::Playtime => {
+            v.sort_by_key(|g| (std::cmp::Reverse(st(g).total_secs()), g.name.to_lowercase()))
+        }
         Sort::Added => v.sort_by_key(|g| (-g.added, g.name.to_lowercase())),
     }
     // Favorites float to the top of every view.
@@ -568,8 +620,13 @@ pub fn refresh_grid(app: &AppRc) {
     *app.shown.borrow_mut() = games.iter().map(|g| g.id.clone()).collect();
     app.grid_title.set_text(app.filter.get().label());
     let q = app.query.borrow().clone();
-    app.grid_count.set_text(&if q.is_empty() { format!("{} titles", games.len()) } else { format!("{} matching \u{201c}{}\u{201d}", games.len(), q) });
-    app.grid_stack.set_visible_child_name(if games.is_empty() { "empty" } else { "grid" });
+    app.grid_count.set_text(&if q.is_empty() {
+        format!("{} titles", games.len())
+    } else {
+        format!("{} matching \u{201c}{}\u{201d}", games.len(), q)
+    });
+    app.grid_stack
+        .set_visible_child_name(if games.is_empty() { "empty" } else { "grid" });
 
     for (f, b, count) in app.nav.borrow().iter() {
         if *f == app.filter.get() {
@@ -578,14 +635,21 @@ pub fn refresh_grid(app: &AppRc) {
             b.remove_css_class("active");
         }
         let lib = app.lib.borrow();
-        let n = lib.games.iter().filter(|g| f.matches(g, &lib.stats(&g.id))).count();
+        let n = lib
+            .games
+            .iter()
+            .filter(|g| f.matches(g, &lib.stats(&g.id)))
+            .count();
         count.set_text(&n.to_string());
     }
     update_sys(app);
 
     // Keep the selection if it's still shown, else the first tile.
     let want = app.selected.borrow().clone();
-    let idx = want.as_ref().and_then(|id| app.shown.borrow().iter().position(|x| x == id)).or(if games.is_empty() { None } else { Some(0) });
+    let idx = want
+        .as_ref()
+        .and_then(|id| app.shown.borrow().iter().position(|x| x == id))
+        .or(if games.is_empty() { None } else { Some(0) });
     match idx.and_then(|i| app.grid.child_at_index(i as i32)) {
         Some(c) => {
             app.grid.select_child(&c);
@@ -596,7 +660,12 @@ pub fn refresh_grid(app: &AppRc) {
             detail::show(app);
         }
         None => {
-            if games.is_empty() && want.as_ref().map(|id| app.lib.borrow().get(id).is_none()).unwrap_or(true) {
+            if games.is_empty()
+                && want
+                    .as_ref()
+                    .map(|id| app.lib.borrow().get(id).is_none())
+                    .unwrap_or(true)
+            {
                 *app.selected.borrow_mut() = None;
             }
             detail::show(app);
@@ -605,7 +674,11 @@ pub fn refresh_grid(app: &AppRc) {
 }
 
 fn initials(name: &str) -> String {
-    name.split_whitespace().filter_map(|w| w.chars().find(|c| c.is_alphanumeric())).take(2).flat_map(|c| c.to_uppercase()).collect()
+    name.split_whitespace()
+        .filter_map(|w| w.chars().find(|c| c.is_alphanumeric()))
+        .take(2)
+        .flat_map(|c| c.to_uppercase())
+        .collect()
 }
 
 fn tile(app: &AppRc, g: &Game, st: &Stats, running: bool) -> gtk::Box {
@@ -622,7 +695,8 @@ fn tile(app: &AppRc, g: &Game, st: &Stats, running: bool) -> gtk::Box {
     inner.set_valign(gtk::Align::Center);
     inner.set_vexpand(true);
     // No cover but an app icon (desktop entries, native games): show the icon big.
-    let icon = library::art(g, library::Art::Logo).filter(|_| library::art(g, library::Art::Cover).is_none());
+    let icon = library::art(g, library::Art::Logo)
+        .filter(|_| library::art(g, library::Art::Cover).is_none());
     let mark = label(&initials(&g.name), "fallback-mark");
     mark.set_xalign(0.5);
     if let Some(p) = icon {
@@ -658,7 +732,10 @@ fn tile(app: &AppRc, g: &Game, st: &Stats, running: bool) -> gtk::Box {
     frame.add_overlay(&pic);
     if let Some(path) = library::art(g, library::Art::Cover) {
         let p2 = pic.clone();
-        app.images.load(&pic, &path, TILE_W * 2, TILE_H * 2, move |ok| p2.set_visible(ok));
+        app.images
+            .load(&pic, &path, TILE_W * 2, TILE_H * 2, move |ok| {
+                p2.set_visible(ok)
+            });
     }
 
     let lamp = label("󰐊 RUNNING", "lamp run");
@@ -685,8 +762,15 @@ fn tile(app: &AppRc, g: &Game, st: &Stats, running: bool) -> gtk::Box {
     name.set_size_request(TILE_W, -1);
     b.append(&name);
     let secs = st.total_secs();
-    let play = if secs == 0 { "NEW".to_string() } else { fmt_playtime(secs) };
-    b.append(&label(&format!("{} · {}", runner_tag(g), play), "tile-meta"));
+    let play = if secs == 0 {
+        "NEW".to_string()
+    } else {
+        fmt_playtime(secs)
+    };
+    b.append(&label(
+        &format!("{} · {}", runner_tag(g), play),
+        "tile-meta",
+    ));
     b
 }
 
@@ -703,9 +787,16 @@ pub fn runner_tag(g: &Game) -> &'static str {
 fn update_sys(app: &App) {
     let lib = app.lib.borrow();
     let total = lib.games.iter().filter(|g| !g.hidden).count();
-    let secs: u64 = lib.games.iter().map(|g| lib.stats(&g.id).total_secs()).sum();
+    let secs: u64 = lib
+        .games
+        .iter()
+        .map(|g| lib.stats(&g.id).total_secs())
+        .sum();
     let run = app.running.borrow().len();
-    let mut s = format!("{total} GAMES · {} PLAYED", fmt_playtime(secs).to_uppercase());
+    let mut s = format!(
+        "{total} GAMES · {} PLAYED",
+        fmt_playtime(secs).to_uppercase()
+    );
     if run > 0 {
         s.push_str(&format!(" · {run} RUNNING"));
         app.sys.remove_css_class("sys");
@@ -761,7 +852,18 @@ fn update_now(app: &AppRc) {
         card.append(&n);
         let started = library::running(id).map(|r| r.started).unwrap_or(0);
         let mins = ((crate::model::now() - started).max(0) / 60) as u64;
-        card.append(&label(&format!("󰐊 {} · since {}", runner_tag(g), if mins == 0 { "now".into() } else { format!("{mins} min") }), "now-meta"));
+        card.append(&label(
+            &format!(
+                "󰐊 {} · since {}",
+                runner_tag(g),
+                if mins == 0 {
+                    "now".into()
+                } else {
+                    format!("{mins} min")
+                }
+            ),
+            "now-meta",
+        ));
         let btn = gtk::Button::new();
         btn.add_css_class("flat");
         btn.set_child(Some(&card));
@@ -776,7 +878,13 @@ fn update_now(app: &AppRc) {
 pub fn select(app: &AppRc, id: &str) {
     *app.selected.borrow_mut() = Some(id.to_string());
     if !app.shown.borrow().iter().any(|x| x == id) {
-        app.filter.set(if app.lib.borrow().get(id).map(|g| g.hidden).unwrap_or(false) { Filter::Hidden } else { Filter::All });
+        app.filter.set(
+            if app.lib.borrow().get(id).map(|g| g.hidden).unwrap_or(false) {
+                Filter::Hidden
+            } else {
+                Filter::All
+            },
+        );
         app.search.set_text("");
         *app.query.borrow_mut() = String::new();
     }
@@ -801,7 +909,9 @@ pub fn play_or_stop(app: &AppRc, id: &str) {
     }
     match crate::launch::spawn_supervisor(id) {
         Ok(()) => {
-            app.starting.borrow_mut().insert(id.to_string(), Instant::now());
+            app.starting
+                .borrow_mut()
+                .insert(id.to_string(), Instant::now());
             detail::show(app);
         }
         Err(e) => toast(app, &format!("Couldn't start: {e}")),
@@ -833,14 +943,28 @@ pub fn scan(app: &AppRc, quiet: bool) {
         let (games, added) = res.unwrap_or_default();
         reload(&a);
         if !added.is_empty() {
-            let names: Vec<String> = added.iter().filter_map(|id| a.lib.borrow().get(id).map(|g| g.name.clone())).take(3).collect();
-            toast(&a, &format!("{} new: {}{}", added.len(), names.join(", "), if added.len() > 3 { "…" } else { "" }));
+            let names: Vec<String> = added
+                .iter()
+                .filter_map(|id| a.lib.borrow().get(id).map(|g| g.name.clone()))
+                .take(3)
+                .collect();
+            toast(
+                &a,
+                &format!(
+                    "{} new: {}{}",
+                    added.len(),
+                    names.join(", "),
+                    if added.len() > 3 { "…" } else { "" }
+                ),
+            );
         } else if !quiet {
             toast(&a, "No new games found");
         }
         // Art second: lookups can take a while and the grid is already usable.
         if cfg.fetch_art {
-            let got = gio::spawn_blocking(move || crate::art::fetch_missing(&games)).await.unwrap_or_default();
+            let got = gio::spawn_blocking(move || crate::art::fetch_missing(&games))
+                .await
+                .unwrap_or_default();
             if !got.is_empty() {
                 refresh_grid(&a);
             }
@@ -855,7 +979,10 @@ pub fn scan(app: &AppRc, quiet: bool) {
 
 fn poll_jobs(app: &AppRc) {
     let jobs = install::jobs();
-    let sig: HashMap<String, String> = jobs.iter().map(|j| (j.id.clone(), format!("{}|{}", j.phase, j.message))).collect();
+    let sig: HashMap<String, String> = jobs
+        .iter()
+        .map(|j| (j.id.clone(), format!("{}|{}", j.phase, j.message)))
+        .collect();
     if sig == *app.job_state.borrow() {
         return;
     }
@@ -897,7 +1024,8 @@ fn poll_jobs(app: &AppRc) {
         row.append(&text);
         let logb = button("LOG", "chip");
         logb.set_valign(gtk::Align::Center);
-        let logp = crate::config::log_dir().join(format!("install-{}.log", crate::model::slugify(&j.name)));
+        let logp = crate::config::log_dir()
+            .join(format!("install-{}.log", crate::model::slugify(&j.name)));
         logb.connect_clicked(move |_| open_path(&logp));
         row.append(&logb);
         if let Some(gid) = j.game_id.clone().filter(|_| j.phase == "done") {
@@ -923,7 +1051,12 @@ fn poll_jobs(app: &AppRc) {
     if let Some(gid) = finished {
         reload(app);
         select(app, &gid);
-        let name = app.lib.borrow().get(&gid).map(|g| g.name.clone()).unwrap_or_default();
+        let name = app
+            .lib
+            .borrow()
+            .get(&gid)
+            .map(|g| g.name.clone())
+            .unwrap_or_default();
         toast(app, &format!("{name} is installed and in your library"));
     }
 }
@@ -944,7 +1077,13 @@ pub fn toast(app: &AppRc, msg: &str) {
 }
 
 pub fn open_path(p: &std::path::Path) {
-    let _ = std::process::Command::new("xdg-open").arg(p).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().map(|mut c| {
-        std::thread::spawn(move || c.wait());
-    });
+    let _ = std::process::Command::new("xdg-open")
+        .arg(p)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|mut c| {
+            std::thread::spawn(move || c.wait());
+        });
 }

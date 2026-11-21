@@ -2,13 +2,13 @@
 //! field shows the inherited default ("Default (On)") and can be reset to it; for the global
 //! defaults "Not set" means the built-in behaviour.
 
-use gtk4 as gtk;
-use super::{button, dialogs, label, AppRc};
-use crate::config::{expand, tilde, Config};
+use super::{AppRc, button, dialogs, label};
+use crate::config::{Config, expand, tilde};
 use crate::launch::split_args;
 use crate::model::{Gamescope, LaunchOptions, RunnerKind};
 use crate::runners;
 use gtk::{glib, prelude::*};
+use gtk4 as gtk;
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -29,12 +29,26 @@ fn onoff(v: Option<bool>) -> &'static str {
 
 /// Shell-quote a command vector back into one line for editing.
 fn join_cmd(v: &[String]) -> String {
-    v.iter().map(|a| if a.is_empty() || a.contains(char::is_whitespace) || a.contains('"') { format!("'{}'", a.replace('\'', "'\\''")) } else { a.clone() }).collect::<Vec<_>>().join(" ")
+    v.iter()
+        .map(|a| {
+            if a.is_empty() || a.contains(char::is_whitespace) || a.contains('"') {
+                format!("'{}'", a.replace('\'', "'\\''"))
+            } else {
+                a.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 // ── layout pieces ─────────────────────────────────────────────────────────────────────────
 
-fn row(name: &str, help: &str, control: &impl IsA<gtk::Widget>, hint: Option<&gtk::Label>) -> gtk::Box {
+fn row(
+    name: &str,
+    help: &str,
+    control: &impl IsA<gtk::Widget>,
+    hint: Option<&gtk::Label>,
+) -> gtk::Box {
     let r = gtk::Box::new(gtk::Orientation::Horizontal, 14);
     r.add_css_class("opt");
     let left = gtk::Box::new(gtk::Orientation::Vertical, 2);
@@ -98,7 +112,11 @@ fn entry_browse(win: &gtk::Window, e: &gtk::Entry, folder: bool, title: &'static
     let (w, e2) = (win.clone(), e.clone());
     br.connect_clicked(move |_| {
         let cur = expand(e2.text().trim());
-        let start = if cur.is_dir() { Some(cur.clone()) } else { cur.parent().map(|p| p.to_path_buf()) };
+        let start = if cur.is_dir() {
+            Some(cur.clone())
+        } else {
+            cur.parent().map(|p| p.to_path_buf())
+        };
         let e3 = e2.clone();
         if folder {
             dialogs::pick_folder(&w, title, start, move |p| e3.set_text(&tilde(&p)));
@@ -141,8 +159,18 @@ impl Ed {
     }
 
     /// Default / On / Off.
-    fn tri(&self, name: &str, help: &str, get: fn(&LaunchOptions) -> Option<bool>, set: fn(&mut LaunchOptions, Option<bool>)) -> gtk::Box {
-        let first = if self.global { "Not set".to_string() } else { format!("Default ({})", onoff(get(&self.base))) };
+    fn tri(
+        &self,
+        name: &str,
+        help: &str,
+        get: fn(&LaunchOptions) -> Option<bool>,
+        set: fn(&mut LaunchOptions, Option<bool>),
+    ) -> gtk::Box {
+        let first = if self.global {
+            "Not set".to_string()
+        } else {
+            format!("Default ({})", onoff(get(&self.base)))
+        };
         let d = dd(&[first, "On".into(), "Off".into()]);
         d.set_selected(match get(&self.opts.borrow()) {
             None => 0,
@@ -151,16 +179,25 @@ impl Ed {
         });
         let o = self.opts.clone();
         d.connect_selected_notify(move |d| {
-            set(&mut o.borrow_mut(), match d.selected() {
-                0 => None,
-                1 => Some(true),
-                _ => Some(false),
-            })
+            set(
+                &mut o.borrow_mut(),
+                match d.selected() {
+                    0 => None,
+                    1 => Some(true),
+                    _ => Some(false),
+                },
+            )
         });
         row(name, help, &d, None)
     }
 
-    fn text(&self, name: &str, help: &str, get: fn(&LaunchOptions) -> Option<String>, set: fn(&mut LaunchOptions, Option<String>)) -> gtk::Box {
+    fn text(
+        &self,
+        name: &str,
+        help: &str,
+        get: fn(&LaunchOptions) -> Option<String>,
+        set: fn(&mut LaunchOptions, Option<String>),
+    ) -> gtk::Box {
         let base = get(&self.base).filter(|s| !s.is_empty());
         let ph = match (&base, self.global) {
             (Some(b), false) => format!("default: {b}"),
@@ -175,12 +212,23 @@ impl Ed {
         row(name, help, &e, None)
     }
 
-    fn int(&self, name: &str, help: &str, get: fn(&LaunchOptions) -> Option<i32>, set: fn(&mut LaunchOptions, Option<i32>)) -> gtk::Box {
+    fn int(
+        &self,
+        name: &str,
+        help: &str,
+        get: fn(&LaunchOptions) -> Option<i32>,
+        set: fn(&mut LaunchOptions, Option<i32>),
+    ) -> gtk::Box {
         let ph = match (get(&self.base), self.global) {
             (Some(b), false) => format!("default: {b}"),
             _ => "not set".to_string(),
         };
-        let e = entry(&get(&self.opts.borrow()).map(|v| v.to_string()).unwrap_or_default(), &ph);
+        let e = entry(
+            &get(&self.opts.borrow())
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
+            &ph,
+        );
         let o = self.opts.clone();
         e.connect_changed(move |e| {
             let v = e.text().trim().parse::<i32>().ok();
@@ -195,12 +243,25 @@ impl Ed {
     }
 
     /// Default + fixed values (value, label).
-    fn choice(&self, name: &str, help: &str, values: Vec<(String, String)>, get: fn(&LaunchOptions) -> Option<String>, set: fn(&mut LaunchOptions, Option<String>)) -> gtk::Box {
+    fn choice(
+        &self,
+        name: &str,
+        help: &str,
+        values: Vec<(String, String)>,
+        get: fn(&LaunchOptions) -> Option<String>,
+        set: fn(&mut LaunchOptions, Option<String>),
+    ) -> gtk::Box {
         let base = get(&self.base);
         let first = if self.global {
             "Not set".to_string()
         } else {
-            let bl = base.as_ref().and_then(|b| values.iter().find(|(v, _)| v == b).map(|(_, l)| l.clone()).or(Some(b.clone())));
+            let bl = base.as_ref().and_then(|b| {
+                values
+                    .iter()
+                    .find(|(v, _)| v == b)
+                    .map(|(_, l)| l.clone())
+                    .or(Some(b.clone()))
+            });
             format!("Default ({})", bl.unwrap_or_else(|| "auto".into()))
         };
         let mut labels = vec![first];
@@ -208,29 +269,56 @@ impl Ed {
         let cur = get(&self.opts.borrow());
         // A saved value that isn't in the list any more (deleted Proton build): keep it visible.
         let mut values = values;
-        if let Some(c) = cur.as_ref().filter(|c| !values.iter().any(|(v, _)| v == *c)) {
+        if let Some(c) = cur
+            .as_ref()
+            .filter(|c| !values.iter().any(|(v, _)| v == *c))
+        {
             values.push((c.clone(), format!("{c} (missing)")));
             labels.push(format!("{c} (missing)"));
         }
         let d = dd(&labels);
-        d.set_selected(cur.and_then(|c| values.iter().position(|(v, _)| *v == c)).map(|i| i as u32 + 1).unwrap_or(0));
+        d.set_selected(
+            cur.and_then(|c| values.iter().position(|(v, _)| *v == c))
+                .map(|i| i as u32 + 1)
+                .unwrap_or(0),
+        );
         let o = self.opts.clone();
         d.connect_selected_notify(move |d| {
             let i = d.selected() as usize;
-            set(&mut o.borrow_mut(), if i == 0 { None } else { values.get(i - 1).map(|(v, _)| v.clone()) });
+            set(
+                &mut o.borrow_mut(),
+                if i == 0 {
+                    None
+                } else {
+                    values.get(i - 1).map(|(v, _)| v.clone())
+                },
+            );
         });
         row(name, help, &d, None)
     }
 
     fn gamescope(&self, page: &gtk::Box) {
-        let gs = Rc::new(RefCell::new(self.opts.borrow().gamescope_opts.clone().or_else(|| self.base.gamescope_opts.clone()).unwrap_or_default()));
+        let gs = Rc::new(RefCell::new(
+            self.opts
+                .borrow()
+                .gamescope_opts
+                .clone()
+                .or_else(|| self.base.gamescope_opts.clone())
+                .unwrap_or_default(),
+        ));
         let loading = Rc::new(Cell::new(false));
         let status = self.hint(String::new(), false);
         let set_status = {
             let (status, o, global) = (status.clone(), self.opts.clone(), self.global);
             move || {
                 let own = o.borrow().gamescope_opts.is_some();
-                status.set_text(if own { "custom for this game" } else if global { "not set" } else { "using the defaults" });
+                status.set_text(if own {
+                    "custom for this game"
+                } else if global {
+                    "not set"
+                } else {
+                    "using the defaults"
+                });
                 if own {
                     status.add_css_class("set");
                 } else {
@@ -240,7 +328,12 @@ impl Ed {
         };
         set_status();
         let commit: Commit = {
-            let (gs, o, loading, set_status) = (gs.clone(), self.opts.clone(), loading.clone(), set_status.clone());
+            let (gs, o, loading, set_status) = (
+                gs.clone(),
+                self.opts.clone(),
+                loading.clone(),
+                set_status.clone(),
+            );
             Rc::new(move |f: &dyn Fn(&mut Gamescope)| {
                 if loading.get() {
                     return;
@@ -250,14 +343,30 @@ impl Ed {
                 set_status();
             })
         };
-        let res = |w: u32, h: u32| if w > 0 && h > 0 { format!("{w}x{h}") } else { String::new() };
+        let res = |w: u32, h: u32| {
+            if w > 0 && h > 0 {
+                format!("{w}x{h}")
+            } else {
+                String::new()
+            }
+        };
         let parse = |s: &str| -> (u32, u32) {
-            s.trim().split_once(['x', 'X']).and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?))).unwrap_or((0, 0))
+            s.trim()
+                .split_once(['x', 'X'])
+                .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
+                .unwrap_or((0, 0))
         };
         let g0 = gs.borrow().clone();
         let game_res = entry(&res(g0.width, g0.height), "native, e.g. 1920x1080");
         let out_res = entry(&res(g0.out_width, g0.out_height), "monitor, e.g. 2560x1440");
-        let refresh = entry(&if g0.refresh > 0 { g0.refresh.to_string() } else { String::new() }, "e.g. 240");
+        let refresh = entry(
+            &if g0.refresh > 0 {
+                g0.refresh.to_string()
+            } else {
+                String::new()
+            },
+            "e.g. 240",
+        );
         let filters = ["none", "fsr", "nis", "linear", "nearest", "pixel"];
         let filter = dd(&filters.iter().map(|s| s.to_uppercase()).collect::<Vec<_>>());
         filter.set_selected(filters.iter().position(|f| *f == g0.filter).unwrap_or(0) as u32);
@@ -296,7 +405,11 @@ impl Ed {
             });
             let c = commit.clone();
             filter.connect_selected_notify(move |d| {
-                let f = if d.selected() == 0 { String::new() } else { filters[d.selected() as usize].to_string() };
+                let f = if d.selected() == 0 {
+                    String::new()
+                } else {
+                    filters[d.selected() as usize].to_string()
+                };
                 c(&|g| g.filter = f.clone())
             });
             let c = commit.clone();
@@ -323,8 +436,23 @@ impl Ed {
 
         let reset = button(if self.global { "CLEAR" } else { "USE DEFAULTS" }, "chip");
         {
-            let (o, base, gs, loading, set_status) = (self.opts.clone(), self.base.gamescope_opts.clone(), gs.clone(), loading.clone(), set_status.clone());
-            let (game_res, out_res, refresh, filter, fullscreen, grab, hdr, extra) = (game_res.clone(), out_res.clone(), refresh.clone(), filter.clone(), fullscreen.clone(), grab.clone(), hdr.clone(), extra.clone());
+            let (o, base, gs, loading, set_status) = (
+                self.opts.clone(),
+                self.base.gamescope_opts.clone(),
+                gs.clone(),
+                loading.clone(),
+                set_status.clone(),
+            );
+            let (game_res, out_res, refresh, filter, fullscreen, grab, hdr, extra) = (
+                game_res.clone(),
+                out_res.clone(),
+                refresh.clone(),
+                filter.clone(),
+                fullscreen.clone(),
+                grab.clone(),
+                hdr.clone(),
+                extra.clone(),
+            );
             reset.connect_clicked(move |_| {
                 o.borrow_mut().gamescope_opts = None;
                 let g = base.clone().unwrap_or_default();
@@ -332,8 +460,13 @@ impl Ed {
                 loading.set(true);
                 game_res.set_text(&res(g.width, g.height));
                 out_res.set_text(&res(g.out_width, g.out_height));
-                refresh.set_text(&if g.refresh > 0 { g.refresh.to_string() } else { String::new() });
-                filter.set_selected(filters.iter().position(|f| *f == g.filter).unwrap_or(0) as u32);
+                refresh.set_text(&if g.refresh > 0 {
+                    g.refresh.to_string()
+                } else {
+                    String::new()
+                });
+                filter
+                    .set_selected(filters.iter().position(|f| *f == g.filter).unwrap_or(0) as u32);
                 fullscreen.set_active(g.fullscreen);
                 grab.set_active(g.grab_cursor);
                 hdr.set_active(g.hdr);
@@ -351,18 +484,49 @@ impl Ed {
         reset.set_valign(gtk::Align::Center);
         head.append(&reset);
         page.append(&head);
-        page.append(&row("Game resolution", "What the game renders at (-w/-h).", &game_res, None));
-        page.append(&row("Output resolution", "What gamescope shows on the monitor (-W/-H).", &out_res, None));
-        page.append(&row("Refresh rate", "Nested refresh rate (-r).", &refresh, None));
-        page.append(&row("Upscaling filter", "How the game image is scaled up (-F).", &filter, None));
+        page.append(&row(
+            "Game resolution",
+            "What the game renders at (-w/-h).",
+            &game_res,
+            None,
+        ));
+        page.append(&row(
+            "Output resolution",
+            "What gamescope shows on the monitor (-W/-H).",
+            &out_res,
+            None,
+        ));
+        page.append(&row(
+            "Refresh rate",
+            "Nested refresh rate (-r).",
+            &refresh,
+            None,
+        ));
+        page.append(&row(
+            "Upscaling filter",
+            "How the game image is scaled up (-F).",
+            &filter,
+            None,
+        ));
         page.append(&row("Fullscreen", "", &fullscreen, None));
-        page.append(&row("Grab cursor", "Keep the mouse inside the game (--force-grab-cursor).", &grab, None));
+        page.append(&row(
+            "Grab cursor",
+            "Keep the mouse inside the game (--force-grab-cursor).",
+            &grab,
+            None,
+        ));
         page.append(&row("HDR", "--hdr-enabled", &hdr, None));
-        page.append(&row("Extra flags", "Added before the -- separator.", &extra, None));
+        page.append(&row(
+            "Extra flags",
+            "Added before the -- separator.",
+            &extra,
+            None,
+        ));
     }
 
     fn env(&self, page: &gtk::Box) {
-        let rows: Rc<RefCell<Vec<(gtk::Box, gtk::Entry, gtk::Entry)>>> = Rc::new(RefCell::new(vec![]));
+        let rows: Rc<RefCell<Vec<(gtk::Box, gtk::Entry, gtk::Entry)>>> =
+            Rc::new(RefCell::new(vec![]));
         let list = gtk::Box::new(gtk::Orientation::Vertical, 6);
         let sync: Rc<dyn Fn()> = {
             let (rows, o) = (rows.clone(), self.opts.clone());
@@ -420,7 +584,10 @@ impl Ed {
             for (k, v) in &self.base.env {
                 page.append(&label(&format!("{k}={v}"), "v mono"));
             }
-            page.append(&label("A variable with the same name here wins.", "opt-help"));
+            page.append(&label(
+                "A variable with the same name here wins.",
+                "opt-help",
+            ));
         }
     }
 }
@@ -455,63 +622,203 @@ fn option_pages(ed: &Ed, cfg: &Config) -> OptPages {
     let mut wine_only: Vec<gtk::Widget> = vec![];
 
     // RUNNER
-    let p_runner = page("Runner", "Which Proton or Wine build runs the game, and Wine-level switches.");
-    let mut protons: Vec<(String, String)> = vec![("latest".into(), match runners::find_proton("latest") {
-        Some(b) => format!("Latest ({})", b.name),
-        None => "Latest".into(),
-    })];
-    protons.extend(runners::protons_with(Some(cfg)).into_iter().map(|b| (b.name.clone(), format!("{}  · {}", b.name, b.origin))));
-    let r = ed.choice("Proton build", "GE-Proton is recommended. Latest follows new installs.", protons, |o| o.proton.clone(), |o, v| o.proton = v);
+    let p_runner = page(
+        "Runner",
+        "Which Proton or Wine build runs the game, and Wine-level switches.",
+    );
+    let mut protons: Vec<(String, String)> = vec![(
+        "latest".into(),
+        match runners::find_proton("latest") {
+            Some(b) => format!("Latest ({})", b.name),
+            None => "Latest".into(),
+        },
+    )];
+    protons.extend(
+        runners::protons_with(Some(cfg))
+            .into_iter()
+            .map(|b| (b.name.clone(), format!("{}  · {}", b.name, b.origin))),
+    );
+    let r = ed.choice(
+        "Proton build",
+        "GE-Proton is recommended. Latest follows new installs.",
+        protons,
+        |o| o.proton.clone(),
+        |o, v| o.proton = v,
+    );
     proton_only.push(r.clone().upcast());
     p_runner.append(&r);
-    let wines: Vec<(String, String)> = runners::wines().into_iter().map(|b| (b.name.clone(), format!("{}  · {}", b.name, b.origin))).collect();
-    let r = ed.choice("Wine build", "Plain Wine (no Proton extras).", wines, |o| o.wine.clone(), |o, v| o.wine = v);
+    let wines: Vec<(String, String)> = runners::wines()
+        .into_iter()
+        .map(|b| (b.name.clone(), format!("{}  · {}", b.name, b.origin)))
+        .collect();
+    let r = ed.choice(
+        "Wine build",
+        "Plain Wine (no Proton extras).",
+        wines,
+        |o| o.wine.clone(),
+        |o, v| o.wine = v,
+    );
     wine_only.push(r.clone().upcast());
     p_runner.append(&r);
-    let syncs = [("default", "Auto"), ("ntsync", "NTSync"), ("fsync", "Fsync"), ("esync", "Esync"), ("off", "Off (debug)")].map(|(a, b)| (a.to_string(), b.to_string())).to_vec();
-    p_runner.append(&ed.choice("Sync", "Thread synchronisation. Auto picks NTSync when the kernel has it.", syncs, |o| o.sync.clone(), |o, v| o.sync = v));
-    let r = ed.tri("FSR 4 upgrade", "GE-Proton swaps FSR 3.1 for FSR 4 on RDNA 4 (PROTON_FSR4_UPGRADE).", |o| o.fsr4, |o, v| o.fsr4 = v);
+    let syncs = [
+        ("default", "Auto"),
+        ("ntsync", "NTSync"),
+        ("fsync", "Fsync"),
+        ("esync", "Esync"),
+        ("off", "Off (debug)"),
+    ]
+    .map(|(a, b)| (a.to_string(), b.to_string()))
+    .to_vec();
+    p_runner.append(&ed.choice(
+        "Sync",
+        "Thread synchronisation. Auto picks NTSync when the kernel has it.",
+        syncs,
+        |o| o.sync.clone(),
+        |o, v| o.sync = v,
+    ));
+    let r = ed.tri(
+        "FSR 4 upgrade",
+        "GE-Proton swaps FSR 3.1 for FSR 4 on RDNA 4 (PROTON_FSR4_UPGRADE).",
+        |o| o.fsr4,
+        |o, v| o.fsr4 = v,
+    );
     proton_only.push(r.clone().upcast());
     p_runner.append(&r);
-    let r = ed.tri("Wine Wayland", "Native Wayland window instead of XWayland (PROTON_ENABLE_WAYLAND).", |o| o.wine_wayland, |o, v| o.wine_wayland = v);
+    let r = ed.tri(
+        "Wine Wayland",
+        "Native Wayland window instead of XWayland (PROTON_ENABLE_WAYLAND).",
+        |o| o.wine_wayland,
+        |o, v| o.wine_wayland = v,
+    );
     proton_only.push(r.clone().upcast());
     p_runner.append(&r);
-    let r = ed.tri("WineD3D (OpenGL)", "Use WineD3D instead of DXVK, for old games that break on Vulkan.", |o| o.wined3d, |o, v| o.wined3d = v);
+    let r = ed.tri(
+        "WineD3D (OpenGL)",
+        "Use WineD3D instead of DXVK, for old games that break on Vulkan.",
+        |o| o.wined3d,
+        |o, v| o.wined3d = v,
+    );
     proton_only.push(r.clone().upcast());
     p_runner.append(&r);
-    p_runner.append(&ed.text("DXVK HUD", "DXVK's own overlay, e.g. fps,compiler.", |o| o.dxvk_hud.clone(), |o, v| o.dxvk_hud = v));
+    p_runner.append(&ed.text(
+        "DXVK HUD",
+        "DXVK's own overlay, e.g. fps,compiler.",
+        |o| o.dxvk_hud.clone(),
+        |o, v| o.dxvk_hud = v,
+    ));
 
     // DISPLAY
     let p_display = page("Display", "Overlay and the gamescope micro-compositor.");
-    p_display.append(&ed.tri("MangoHud", "FPS / frame-time overlay.", |o| o.mangohud, |o, v| o.mangohud = v));
-    p_display.append(&ed.text("MangoHud config", "Extra settings on top of your MangoHud.conf, e.g. fps_limit=141.", |o| o.mangohud_config.clone(), |o, v| o.mangohud_config = v));
-    p_display.append(&ed.tri("Gamescope", "Run inside gamescope (upscaling, fps limits, fixed resolution).", |o| o.gamescope, |o, v| o.gamescope = v));
+    p_display.append(&ed.tri(
+        "MangoHud",
+        "FPS / frame-time overlay.",
+        |o| o.mangohud,
+        |o, v| o.mangohud = v,
+    ));
+    p_display.append(&ed.text(
+        "MangoHud config",
+        "Extra settings on top of your MangoHud.conf, e.g. fps_limit=141.",
+        |o| o.mangohud_config.clone(),
+        |o, v| o.mangohud_config = v,
+    ));
+    p_display.append(&ed.tri(
+        "Gamescope",
+        "Run inside gamescope (upscaling, fps limits, fixed resolution).",
+        |o| o.gamescope,
+        |o, v| o.gamescope = v,
+    ));
     ed.gamescope(&p_display);
 
     // SYSTEM
     let p_system = page("System", "CPU, priority and how the process is wrapped.");
-    p_system.append(&ed.tri("GameMode", "Feral gamemoderun: CPU governor + priority while playing.", |o| o.gamemode, |o, v| o.gamemode = v));
-    let wrap_help = if cfg.wrapper.is_empty() { "No wrapper set in Preferences → Launch.".to_string() } else { format!("Runs through: {}", join_cmd(&cfg.wrapper)) };
-    p_system.append(&ed.tri("Launch wrapper", &wrap_help, |o| o.use_wrapper, |o, v| o.use_wrapper = v));
-    p_system.append(&ed.text("CPU cores", "Pin to these CPUs (taskset list), e.g. 0-7 or 0,2,4.", |o| o.cpu_set.clone(), |o, v| o.cpu_set = v));
-    p_system.append(&ed.int("Nice", "Process priority, -20 (highest) to 19. Below 0 needs permission.", |o| o.nice, |o, v| o.nice = v));
+    p_system.append(&ed.tri(
+        "GameMode",
+        "Feral gamemoderun: CPU governor + priority while playing.",
+        |o| o.gamemode,
+        |o, v| o.gamemode = v,
+    ));
+    let wrap_help = if cfg.wrapper.is_empty() {
+        "No wrapper set in Preferences → Launch.".to_string()
+    } else {
+        format!("Runs through: {}", join_cmd(&cfg.wrapper))
+    };
+    p_system.append(&ed.tri(
+        "Launch wrapper",
+        &wrap_help,
+        |o| o.use_wrapper,
+        |o, v| o.use_wrapper = v,
+    ));
+    p_system.append(&ed.text(
+        "CPU cores",
+        "Pin to these CPUs (taskset list), e.g. 0-7 or 0,2,4.",
+        |o| o.cpu_set.clone(),
+        |o, v| o.cpu_set = v,
+    ));
+    p_system.append(&ed.int(
+        "Nice",
+        "Process priority, -20 (highest) to 19. Below 0 needs permission.",
+        |o| o.nice,
+        |o, v| o.nice = v,
+    ));
 
     // SCRIPTS
-    let p_scripts = page("Scripts", "Shell commands around the game. They get the game's environment.");
-    p_scripts.append(&ed.text("Before launch", "Runs before the game starts.", |o| o.prelaunch.clone(), |o, v| o.prelaunch = v));
-    p_scripts.append(&ed.tri("Wait for it", "Start the game only after the pre-launch command exits.", |o| o.prelaunch_wait, |o, v| o.prelaunch_wait = v));
-    p_scripts.append(&ed.text("After exit", "Runs once the game and everything it started has closed.", |o| o.postexit.clone(), |o, v| o.postexit = v));
-    let r = ed.tri("Stop prefix on exit", "wineserver -k after the game, so leftover launchers don't linger.", |o| o.kill_prefix_on_exit, |o, v| o.kill_prefix_on_exit = v);
+    let p_scripts = page(
+        "Scripts",
+        "Shell commands around the game. They get the game's environment.",
+    );
+    p_scripts.append(&ed.text(
+        "Before launch",
+        "Runs before the game starts.",
+        |o| o.prelaunch.clone(),
+        |o, v| o.prelaunch = v,
+    ));
+    p_scripts.append(&ed.tri(
+        "Wait for it",
+        "Start the game only after the pre-launch command exits.",
+        |o| o.prelaunch_wait,
+        |o, v| o.prelaunch_wait = v,
+    ));
+    p_scripts.append(&ed.text(
+        "After exit",
+        "Runs once the game and everything it started has closed.",
+        |o| o.postexit.clone(),
+        |o, v| o.postexit = v,
+    ));
+    let r = ed.tri(
+        "Stop prefix on exit",
+        "wineserver -k after the game, so leftover launchers don't linger.",
+        |o| o.kill_prefix_on_exit,
+        |o, v| o.kill_prefix_on_exit = v,
+    );
     windows_only.push(r.clone().upcast());
     p_scripts.append(&r);
-    p_scripts.append(&ed.tri("Launch log", "Keep the game's output in the log folder.", |o| o.log, |o, v| o.log = v));
+    p_scripts.append(&ed.tri(
+        "Launch log",
+        "Keep the game's output in the log folder.",
+        |o| o.log,
+        |o, v| o.log = v,
+    ));
 
     // ENVIRONMENT
-    let p_env = page("Environment", "Extra variables for the game. These win over everything hearth sets.");
+    let p_env = page(
+        "Environment",
+        "Extra variables for the game. These win over everything hearth sets.",
+    );
     ed.env(&p_env);
 
     windows_only.push(p_runner.clone().upcast());
-    OptPages { pages: vec![("RUNNER", p_runner), ("DISPLAY", p_display), ("SYSTEM", p_system), ("SCRIPTS", p_scripts), ("ENVIRONMENT", p_env)], windows_only, proton_only, wine_only }
+    OptPages {
+        pages: vec![
+            ("RUNNER", p_runner),
+            ("DISPLAY", p_display),
+            ("SYSTEM", p_system),
+            ("SCRIPTS", p_scripts),
+            ("ENVIRONMENT", p_env),
+        ],
+        windows_only,
+        proton_only,
+        wine_only,
+    }
 }
 
 /// Left section list + stack. Returns the root and a fn to show/hide a section button with its page.
@@ -562,7 +869,12 @@ fn sectioned(pages: &[(&str, gtk::Box)]) -> (gtk::Box, Vec<gtk::Button>) {
         .iter()
         .zip(scrolls)
         .zip(buttons.iter())
-        .map(|(((name, p), scroll), b)| super::settings_search::Section { name: name.to_string(), page: p.clone(), scroll, button: b.clone() })
+        .map(|(((name, p), scroll), b)| super::settings_search::Section {
+            name: name.to_string(),
+            page: p.clone(),
+            scroll,
+            button: b.clone(),
+        })
         .collect();
     super::settings_search::attach(&side, &stack, &root, sections);
     root.append(&side);
@@ -573,13 +885,19 @@ fn sectioned(pages: &[(&str, gtk::Box)]) -> (gtk::Box, Vec<gtk::Button>) {
 // ── per-game dialog ───────────────────────────────────────────────────────────────────────
 
 pub fn game_dialog(app: &AppRc, id: &str) {
-    let Some(g0) = app.lib.borrow().get(id).cloned() else { return };
+    let Some(g0) = app.lib.borrow().get(id).cloned() else {
+        return;
+    };
     let cfg = app.cfg.borrow().clone();
     let (win, body, foot) = dialogs::modal(app, "GAME SETTINGS", &g0.name, 900, 700);
     body.remove_css_class("dialog-body");
     let game = Rc::new(RefCell::new(g0.clone()));
     let opts: Opts = Rc::new(RefCell::new(g0.options.clone()));
-    let ed = Ed { opts: opts.clone(), base: cfg.defaults.clone(), global: false };
+    let ed = Ed {
+        opts: opts.clone(),
+        base: cfg.defaults.clone(),
+        global: false,
+    };
 
     // GAME page
     let p_game = page("Game", "What to run and where it lives.");
@@ -589,53 +907,114 @@ pub fn game_dialog(app: &AppRc, id: &str) {
         name.connect_changed(move |e| gm.borrow_mut().name = e.text().to_string());
     }
     p_game.append(&row("Name", "", &name, None));
-    let runner_dd = dd(&RunnerKind::ALL.iter().map(|r| r.label().to_string()).collect::<Vec<_>>());
-    runner_dd.set_selected(RunnerKind::ALL.iter().position(|r| *r == g0.runner).unwrap_or(0) as u32);
-    p_game.append(&row("Runner", "Proton for Windows games, Linux for native ones.", &runner_dd, None));
+    let runner_dd = dd(&RunnerKind::ALL
+        .iter()
+        .map(|r| r.label().to_string())
+        .collect::<Vec<_>>());
+    runner_dd.set_selected(
+        RunnerKind::ALL
+            .iter()
+            .position(|r| *r == g0.runner)
+            .unwrap_or(0) as u32,
+    );
+    p_game.append(&row(
+        "Runner",
+        "Proton for Windows games, Linux for native ones.",
+        &runner_dd,
+        None,
+    ));
 
-    let exe = entry(&g0.exe.as_ref().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(), "/path/to/game.exe");
+    let exe = entry(
+        &g0.exe
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        "/path/to/game.exe",
+    );
     {
         let gm = game.clone();
         exe.connect_changed(move |e| gm.borrow_mut().exe = path_or_none(&e.text()));
     }
-    let exe_row = row("Executable", "The .exe, AppImage, binary or script.", &entry_browse(&win, &exe, false, "Pick the executable"), None);
+    let exe_row = row(
+        "Executable",
+        "The .exe, AppImage, binary or script.",
+        &entry_browse(&win, &exe, false, "Pick the executable"),
+        None,
+    );
     p_game.append(&exe_row);
     let args = entry(&g0.args, "none");
     {
         let gm = game.clone();
         args.connect_changed(move |e| gm.borrow_mut().args = e.text().to_string());
     }
-    let args_row = row("Arguments", "Passed to the game, shell-style quoting.", &args, None);
+    let args_row = row(
+        "Arguments",
+        "Passed to the game, shell-style quoting.",
+        &args,
+        None,
+    );
     p_game.append(&args_row);
     let cmd = entry(&join_cmd(&g0.command), "program --flag");
     {
         let gm = game.clone();
         cmd.connect_changed(move |e| gm.borrow_mut().command = split_args(&e.text()));
     }
-    let cmd_row = row("Command", "Full command line (from the app's .desktop entry).", &cmd, None);
+    let cmd_row = row(
+        "Command",
+        "Full command line (from the app's .desktop entry).",
+        &cmd,
+        None,
+    );
     p_game.append(&cmd_row);
-    let wd = entry(&g0.workdir.as_ref().map(|p| tilde(p)).unwrap_or_default(), "the executable's folder");
+    let wd = entry(
+        &g0.workdir.as_ref().map(|p| tilde(p)).unwrap_or_default(),
+        "the executable's folder",
+    );
     {
         let gm = game.clone();
         wd.connect_changed(move |e| gm.borrow_mut().workdir = path_or_none(&e.text()));
     }
-    let wd_row = row("Working folder", "", &entry_browse(&win, &wd, true, "Working folder"), None);
+    let wd_row = row(
+        "Working folder",
+        "",
+        &entry_browse(&win, &wd, true, "Working folder"),
+        None,
+    );
     p_game.append(&wd_row);
-    let pfx = entry(&g0.prefix.as_ref().map(|p| tilde(p)).unwrap_or_default(), &format!("new: {}", tilde(&crate::launch::default_prefix(&cfg, &g0))));
+    let pfx = entry(
+        &g0.prefix.as_ref().map(|p| tilde(p)).unwrap_or_default(),
+        &format!("new: {}", tilde(&crate::launch::default_prefix(&cfg, &g0))),
+    );
     {
         let gm = game.clone();
         pfx.connect_changed(move |e| gm.borrow_mut().prefix = path_or_none(&e.text()));
     }
-    let pfx_row = row("Wine prefix", "Each game can have its own; shared prefixes work too.", &entry_browse(&win, &pfx, true, "Wine prefix folder"), None);
+    let pfx_row = row(
+        "Wine prefix",
+        "Each game can have its own; shared prefixes work too.",
+        &entry_browse(&win, &pfx, true, "Wine prefix folder"),
+        None,
+    );
     p_game.append(&pfx_row);
-    let appid = entry(&g0.steam_appid.map(|a| a.to_string()).unwrap_or_default(), "none");
+    let appid = entry(
+        &g0.steam_appid.map(|a| a.to_string()).unwrap_or_default(),
+        "none",
+    );
     {
         let gm = game.clone();
         appid.connect_changed(move |e| gm.borrow_mut().steam_appid = e.text().trim().parse().ok());
     }
-    let appid_row = row("Steam app id", "Steam games: the app to start. Others: art lookup and umu protonfixes.", &appid, None);
+    let appid_row = row(
+        "Steam app id",
+        "Steam games: the app to start. Others: art lookup and umu protonfixes.",
+        &appid,
+        None,
+    );
     p_game.append(&appid_row);
-    let steam_note = label("Steam starts this game, so Steam's own Properties (launch options, Proton version) apply. hearth keeps the name, art, favorite and hidden state.", "note");
+    let steam_note = label(
+        "Steam starts this game, so Steam's own Properties (launch options, Proton version) apply. hearth keeps the name, art, favorite and hidden state.",
+        "note",
+    );
     steam_note.set_wrap(true);
     steam_note.set_margin_top(12);
     p_game.append(&steam_note);
@@ -648,7 +1027,15 @@ pub fn game_dialog(app: &AppRc, id: &str) {
 
     let op = Rc::new(op);
     let apply_runner = {
-        let (op, exe_row, args_row, cmd_row, wd_row, pfx_row, steam_note) = (op.clone(), exe_row.clone(), args_row.clone(), cmd_row.clone(), wd_row.clone(), pfx_row.clone(), steam_note.clone());
+        let (op, exe_row, args_row, cmd_row, wd_row, pfx_row, steam_note) = (
+            op.clone(),
+            exe_row.clone(),
+            args_row.clone(),
+            cmd_row.clone(),
+            wd_row.clone(),
+            pfx_row.clone(),
+            steam_note.clone(),
+        );
         move |r: RunnerKind| {
             let steam = r == RunnerKind::Steam;
             op.set_runner(Some(r));
@@ -665,7 +1052,10 @@ pub fn game_dialog(app: &AppRc, id: &str) {
                     }
                 }
             }
-            exe_row.set_visible(matches!(r, RunnerKind::Proton | RunnerKind::Wine | RunnerKind::Native));
+            exe_row.set_visible(matches!(
+                r,
+                RunnerKind::Proton | RunnerKind::Wine | RunnerKind::Native
+            ));
             args_row.set_visible(!steam);
             cmd_row.set_visible(r == RunnerKind::Command);
             wd_row.set_visible(!steam);
@@ -719,7 +1109,13 @@ pub fn game_dialog(app: &AppRc, id: &str) {
         cancel.connect_clicked(move |_| w.close());
     }
     {
-        let (a, w, gm, opts, old_name) = (app.clone(), win.clone(), game.clone(), opts.clone(), g0.name.clone());
+        let (a, w, gm, opts, old_name) = (
+            app.clone(),
+            win.clone(),
+            game.clone(),
+            opts.clone(),
+            g0.name.clone(),
+        );
         save.connect_clicked(move |_| {
             let mut g = gm.borrow().clone();
             g.name = g.name.trim().to_string();
@@ -760,7 +1156,11 @@ fn lines_view(lines: &[String]) -> gtk::TextView {
 
 fn view_lines(tv: &gtk::TextView) -> Vec<String> {
     let b = tv.buffer();
-    b.text(&b.start_iter(), &b.end_iter(), false).lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect()
+    b.text(&b.start_iter(), &b.end_iter(), false)
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect()
 }
 
 pub fn prefs_dialog(app: &AppRc) {
@@ -780,21 +1180,61 @@ pub fn prefs_dialog(app: &AppRc) {
     };
 
     // LIBRARY
-    let p_lib = page("Library", "Where hearth looks for games. One folder per line.");
+    let p_lib = page(
+        "Library",
+        "Where hearth looks for games. One folder per line.",
+    );
     let game_dirs = lines_view(&cfg0.game_dirs);
-    p_lib.append(&row("Game folders", "Each sub-folder is a game: repack installs, portable and native games.", &game_dirs, None));
+    p_lib.append(&row(
+        "Game folders",
+        "Each sub-folder is a game: repack installs, portable and native games.",
+        &game_dirs,
+        None,
+    ));
     let prefix_dirs = lines_view(&cfg0.prefix_dirs);
-    p_lib.append(&row("Prefix folders", "Folders of Wine prefixes; games installed inside them are found too.", &prefix_dirs, None));
+    p_lib.append(&row(
+        "Prefix folders",
+        "Folders of Wine prefixes; games installed inside them are found too.",
+        &prefix_dirs,
+        None,
+    ));
     let lutris = sw(cfg0.lutris_import);
-    p_lib.append(&row("Import Lutris", "Games, settings, covers and play time from Lutris.", &lutris, None));
+    p_lib.append(&row(
+        "Import Lutris",
+        "Games, settings, covers and play time from Lutris.",
+        &lutris,
+        None,
+    ));
     let lutris_dir = entry(&cfg0.lutris_dir, "~/.local/share/lutris");
-    p_lib.append(&row("Lutris folder", "", &entry_browse(&win, &lutris_dir, true, "Lutris data folder"), None));
+    p_lib.append(&row(
+        "Lutris folder",
+        "",
+        &entry_browse(&win, &lutris_dir, true, "Lutris data folder"),
+        None,
+    ));
     let desktop = sw(cfg0.desktop_entries);
-    p_lib.append(&row("App entries", "Add .desktop apps in the Game category (flatpaks, emulators).", &desktop, None));
+    p_lib.append(&row(
+        "App entries",
+        "Add .desktop apps in the Game category (flatpaks, emulators).",
+        &desktop,
+        None,
+    ));
     let art = sw(cfg0.fetch_art);
-    p_lib.append(&row("Fetch cover art", "Look up covers for non-Steam games on the Steam store (sends the title only).", &art, None));
+    p_lib.append(&row(
+        "Fetch cover art",
+        "Look up covers for non-Steam games on the Steam store (sends the title only).",
+        &art,
+        None,
+    ));
     {
-        let (gd, pd, l, ld, d, a) = (game_dirs.clone(), prefix_dirs.clone(), lutris.clone(), lutris_dir.clone(), desktop.clone(), art.clone());
+        let (gd, pd, l, ld, d, a) = (
+            game_dirs.clone(),
+            prefix_dirs.clone(),
+            lutris.clone(),
+            lutris_dir.clone(),
+            desktop.clone(),
+            art.clone(),
+        );
         collect.push(Box::new(move |c| {
             c.game_dirs = view_lines(&gd);
             c.prefix_dirs = view_lines(&pd);
@@ -817,25 +1257,63 @@ pub fn prefs_dialog(app: &AppRc) {
     p_lib.append(&forget);
 
     // INSTALLS
-    let p_inst = page("Installs", "Where INSTALL FROM .EXE puts games and prefixes.");
+    let p_inst = page(
+        "Installs",
+        "Where INSTALL FROM .EXE puts games and prefixes.",
+    );
     let install_root = entry(&cfg0.install_root, "~/Games");
-    p_inst.append(&row("Games go to", "Each install gets <this>/<name>.", &entry_browse(&win, &install_root, true, "Install folder"), None));
+    p_inst.append(&row(
+        "Games go to",
+        "Each install gets <this>/<name>.",
+        &entry_browse(&win, &install_root, true, "Install folder"),
+        None,
+    ));
     let prefix_root = entry(&cfg0.prefix_root, "~/Games/Prefixes");
-    p_inst.append(&row("Prefixes go to", "Each install gets its own prefix <this>/<name>.", &entry_browse(&win, &prefix_root, true, "Prefix folder"), None));
+    p_inst.append(&row(
+        "Prefixes go to",
+        "Each install gets its own prefix <this>/<name>.",
+        &entry_browse(&win, &prefix_root, true, "Prefix folder"),
+        None,
+    ));
     let drive = entry(&cfg0.install_drive, "x");
     drive.set_max_length(1);
-    p_inst.append(&row("Drive letter", "Mapped inside every new prefix, so installers see the games folder.", &drive, None));
+    p_inst.append(&row(
+        "Drive letter",
+        "Mapped inside every new prefix, so installers see the games folder.",
+        &drive,
+        None,
+    ));
     let drive_t = entry(&cfg0.install_drive_target, "~");
-    p_inst.append(&row("Drive points at", "X: → this folder. With ~ the default path becomes X:\\Games\\<name>.", &entry_browse(&win, &drive_t, true, "Drive target"), None));
+    p_inst.append(&row(
+        "Drive points at",
+        "X: → this folder. With ~ the default path becomes X:\\Games\\<name>.",
+        &entry_browse(&win, &drive_t, true, "Drive target"),
+        None,
+    ));
     let downloads = entry(&cfg0.downloads_dir, "~/Downloads");
-    p_inst.append(&row("Installers are in", "Where the .exe picker opens.", &entry_browse(&win, &downloads, true, "Downloads"), None));
+    p_inst.append(&row(
+        "Installers are in",
+        "Where the .exe picker opens.",
+        &entry_browse(&win, &downloads, true, "Downloads"),
+        None,
+    ));
     {
-        let (ir, pr, d, dt, dl) = (install_root.clone(), prefix_root.clone(), drive.clone(), drive_t.clone(), downloads.clone());
+        let (ir, pr, d, dt, dl) = (
+            install_root.clone(),
+            prefix_root.clone(),
+            drive.clone(),
+            drive_t.clone(),
+            downloads.clone(),
+        );
         collect.push(Box::new(move |c| {
             c.install_root = ir.text().trim().to_string();
             c.prefix_root = pr.text().trim().to_string();
             let l = d.text().trim().to_lowercase();
-            if l.chars().next().map(|ch| ch.is_ascii_alphabetic() && ch != 'c' && ch != 'z').unwrap_or(false) {
+            if l.chars()
+                .next()
+                .map(|ch| ch.is_ascii_alphabetic() && ch != 'c' && ch != 'z')
+                .unwrap_or(false)
+            {
                 c.install_drive = l;
             }
             c.install_drive_target = dt.text().trim().to_string();
@@ -846,23 +1324,63 @@ pub fn prefs_dialog(app: &AppRc) {
     // STEAM + LAUNCH
     let p_launch = page("Launch", "How games are started.");
     let steam_root = entry(&cfg0.steam_root, "~/.local/share/Steam");
-    p_launch.append(&row("Steam folder", "", &entry_browse(&win, &steam_root, true, "Steam folder"), None));
-    let steam_cmd = entry(&join_cmd(&cfg0.steam_command), "steam steam://rungameid/{appid}");
-    p_launch.append(&row("Steam command", "{appid} is replaced. Point it at your own Steam wrapper if you have one.", &steam_cmd, None));
+    p_launch.append(&row(
+        "Steam folder",
+        "",
+        &entry_browse(&win, &steam_root, true, "Steam folder"),
+        None,
+    ));
+    let steam_cmd = entry(
+        &join_cmd(&cfg0.steam_command),
+        "steam steam://rungameid/{appid}",
+    );
+    p_launch.append(&row(
+        "Steam command",
+        "{appid} is replaced. Point it at your own Steam wrapper if you have one.",
+        &steam_cmd,
+        None,
+    ));
     let wrapper = entry(&join_cmd(&cfg0.wrapper), "none");
-    p_launch.append(&row("Launch wrapper", "Wraps games that have \"Launch wrapper\" on, e.g. a VPN split-tunnel command.", &wrapper, None));
+    p_launch.append(&row(
+        "Launch wrapper",
+        "Wraps games that have \"Launch wrapper\" on, e.g. a VPN split-tunnel command.",
+        &wrapper,
+        None,
+    ));
     group(&p_launch, "MANGOHUD ENVIRONMENT");
-    let mh_note = label("Set when MangoHud is on. Default MANGOHUD=1; use your own layer's switch if you build MangoHud yourself.", "opt-help");
+    let mh_note = label(
+        "Set when MangoHud is on. Default MANGOHUD=1; use your own layer's switch if you build MangoHud yourself.",
+        "opt-help",
+    );
     mh_note.set_wrap(true);
     p_launch.append(&mh_note);
     // Reuse the env editor on a scratch options value.
-    let mh_opts: Opts = Rc::new(RefCell::new(LaunchOptions { env: cfg0.mangohud_env.clone(), ..Default::default() }));
-    Ed { opts: mh_opts.clone(), base: LaunchOptions::default(), global: true }.env(&p_launch);
+    let mh_opts: Opts = Rc::new(RefCell::new(LaunchOptions {
+        env: cfg0.mangohud_env.clone(),
+        ..Default::default()
+    }));
+    Ed {
+        opts: mh_opts.clone(),
+        base: LaunchOptions::default(),
+        global: true,
+    }
+    .env(&p_launch);
     let extra_dirs = lines_view(&cfg0.runner_dirs);
     group(&p_launch, "MORE PROTON / WINE FOLDERS");
-    p_launch.append(&row("Runner folders", "Searched for Proton builds besides Steam's and Lutris's.", &extra_dirs, None));
+    p_launch.append(&row(
+        "Runner folders",
+        "Searched for Proton builds besides Steam's and Lutris's.",
+        &extra_dirs,
+        None,
+    ));
     {
-        let (sr, sc, w, mh, rd) = (steam_root.clone(), steam_cmd.clone(), wrapper.clone(), mh_opts.clone(), extra_dirs.clone());
+        let (sr, sc, w, mh, rd) = (
+            steam_root.clone(),
+            steam_cmd.clone(),
+            wrapper.clone(),
+            mh_opts.clone(),
+            extra_dirs.clone(),
+        );
         collect.push(Box::new(move |c| {
             c.steam_root = sr.text().trim().to_string();
             let s = split_args(&sc.text());
@@ -877,14 +1395,21 @@ pub fn prefs_dialog(app: &AppRc) {
 
     // DEFAULTS (global launch options)
     let def_opts: Opts = Rc::new(RefCell::new(cfg0.defaults.clone()));
-    let ed = Ed { opts: def_opts.clone(), base: LaunchOptions::default(), global: true };
+    let ed = Ed {
+        opts: def_opts.clone(),
+        base: LaunchOptions::default(),
+        global: true,
+    };
     let op = option_pages(&ed, &cfg0);
     op.set_runner(None);
 
     // TOOLS
     let p_tools = page("Tools", "What hearth found on this machine.");
     for (n, p) in runners::tools() {
-        let st = label(if p.is_some() { "FOUND" } else { "MISSING" }, if p.is_some() { "tool-ok" } else { "tool-miss" });
+        let st = label(
+            if p.is_some() { "FOUND" } else { "MISSING" },
+            if p.is_some() { "tool-ok" } else { "tool-miss" },
+        );
         let r = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         r.add_css_class("opt");
         let nl = label(n, "opt-name");
@@ -892,7 +1417,10 @@ pub fn prefs_dialog(app: &AppRc) {
         r.append(&nl);
         st.set_width_chars(8);
         r.append(&st);
-        let pl = label(&p.map(|p| tilde(&p)).unwrap_or_else(|| "—".into()), "v mono");
+        let pl = label(
+            &p.map(|p| tilde(&p)).unwrap_or_else(|| "—".into()),
+            "v mono",
+        );
         pl.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
         pl.set_hexpand(true);
         r.append(&pl);
@@ -915,8 +1443,18 @@ pub fn prefs_dialog(app: &AppRc) {
         p_tools.append(&r);
     }
 
-    let mut pages: Vec<(&str, gtk::Box)> = vec![("LIBRARY", p_lib), ("INSTALLS", p_inst), ("LAUNCH", p_launch)];
-    let names = ["DEF · RUNNER", "DEF · DISPLAY", "DEF · SYSTEM", "DEF · SCRIPTS", "DEF · ENV"];
+    let mut pages: Vec<(&str, gtk::Box)> = vec![
+        ("LIBRARY", p_lib),
+        ("INSTALLS", p_inst),
+        ("LAUNCH", p_launch),
+    ];
+    let names = [
+        "DEF · RUNNER",
+        "DEF · DISPLAY",
+        "DEF · SYSTEM",
+        "DEF · SCRIPTS",
+        "DEF · ENV",
+    ];
     for (i, (_, p)) in op.pages.iter().enumerate() {
         pages.push((names[i], p.clone()));
     }
@@ -945,7 +1483,10 @@ pub fn prefs_dialog(app: &AppRc) {
                 super::toast(&a, &format!("Couldn't save: {e}"));
                 return;
             }
-            let rescan = c.game_dirs != a.cfg.borrow().game_dirs || c.prefix_dirs != a.cfg.borrow().prefix_dirs || c.lutris_import != a.cfg.borrow().lutris_import || c.desktop_entries != a.cfg.borrow().desktop_entries;
+            let rescan = c.game_dirs != a.cfg.borrow().game_dirs
+                || c.prefix_dirs != a.cfg.borrow().prefix_dirs
+                || c.lutris_import != a.cfg.borrow().lutris_import
+                || c.desktop_entries != a.cfg.borrow().desktop_entries;
             *a.cfg.borrow_mut() = c;
             super::refresh_grid(&a);
             if rescan {

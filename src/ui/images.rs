@@ -1,8 +1,8 @@
 //! Art loading: decode + downscale in a worker thread, build the texture on the main thread,
 //! cache by (path, size). Covers are loaded at 2x tile size so they stay sharp on HiDPI.
 
-use gtk4 as gtk;
 use gtk::{gdk, gdk_pixbuf, glib, prelude::*};
+use gtk4 as gtk;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -18,11 +18,21 @@ struct Raw {
 
 fn decode(path: &Path, w: i32, h: i32) -> Option<Raw> {
     let pb = gdk_pixbuf::Pixbuf::from_file_at_scale(path, w, h, true).ok()?;
-    Some(Raw { w: pb.width(), h: pb.height(), stride: pb.rowstride() as usize, alpha: pb.has_alpha(), bytes: pb.read_pixel_bytes() })
+    Some(Raw {
+        w: pb.width(),
+        h: pb.height(),
+        stride: pb.rowstride() as usize,
+        alpha: pb.has_alpha(),
+        bytes: pb.read_pixel_bytes(),
+    })
 }
 
 fn texture(r: Raw) -> gdk::Texture {
-    let fmt = if r.alpha { gdk::MemoryFormat::R8g8b8a8 } else { gdk::MemoryFormat::R8g8b8 };
+    let fmt = if r.alpha {
+        gdk::MemoryFormat::R8g8b8a8
+    } else {
+        gdk::MemoryFormat::R8g8b8
+    };
     gdk::MemoryTexture::new(r.w, r.h, fmt, &r.bytes, r.stride).upcast()
 }
 
@@ -44,7 +54,14 @@ fn mtime(p: &Path) -> u64 {
 
 impl Cache {
     /// Show `path` (scaled to fit w x h) in `pic`; `done(true)` once something is shown.
-    pub fn load(&self, pic: &gtk::Picture, path: &Path, w: i32, h: i32, done: impl Fn(bool) + 'static) {
+    pub fn load(
+        &self,
+        pic: &gtk::Picture,
+        path: &Path,
+        w: i32,
+        h: i32,
+        done: impl Fn(bool) + 'static,
+    ) {
         let key = (path.to_path_buf(), w, mtime(path));
         if let Some(t) = self.map.borrow().get(&key) {
             pic.set_paintable(Some(t));
@@ -55,7 +72,10 @@ impl Cache {
         let weak = pic.downgrade();
         let p = path.to_path_buf();
         glib::spawn_future_local(async move {
-            let raw = gtk::gio::spawn_blocking(move || decode(&p, w, h)).await.ok().flatten();
+            let raw = gtk::gio::spawn_blocking(move || decode(&p, w, h))
+                .await
+                .ok()
+                .flatten();
             let Some(raw) = raw else {
                 done(false);
                 return;

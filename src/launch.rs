@@ -5,9 +5,9 @@
 //! `HEARTH_GAME=<id>` (so launchers that fork and exit are followed), counts play time, then runs the
 //! post-exit script. Closing the GUI never touches a running game.
 
-use crate::config::{self, write_atomic, Config};
+use crate::config::{self, Config, write_atomic};
 use crate::library::{self, load_stats, save_stats};
-use crate::model::{now, Game, LaunchOptions, RunningInfo, RunnerKind};
+use crate::model::{Game, LaunchOptions, RunnerKind, RunningInfo, now};
 use crate::runners;
 use std::collections::BTreeMap;
 use std::os::unix::process::CommandExt;
@@ -37,13 +37,23 @@ impl Plan {
                 s.push_str(&format!("{k}={} ", quote(v)));
             }
         }
-        s.push_str(&self.argv.iter().map(|a| quote(a)).collect::<Vec<_>>().join(" "));
+        s.push_str(
+            &self
+                .argv
+                .iter()
+                .map(|a| quote(a))
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
         s
     }
 }
 
 fn quote(s: &str) -> String {
-    if !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || "-_./=:,+@%".contains(c)) {
+    if !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_alphanumeric() || "-_./=:,+@%".contains(c))
+    {
         s.to_string()
     } else {
         format!("'{}'", s.replace('\'', "'\\''"))
@@ -86,7 +96,11 @@ pub fn split_args(s: &str) -> Vec<String> {
 
 /// Default prefix for a Windows game without one: `<prefix_root>/<name>`.
 pub fn default_prefix(cfg: &Config, g: &Game) -> PathBuf {
-    let name: String = g.name.chars().map(|c| if c == '/' { '-' } else { c }).collect();
+    let name: String = g
+        .name
+        .chars()
+        .map(|c| if c == '/' { '-' } else { c })
+        .collect();
     config::expand(&cfg.prefix_root).join(name.trim())
 }
 
@@ -103,12 +117,27 @@ pub fn plan(g: &Game, cfg: &Config) -> Result<Plan, String> {
     match g.runner {
         RunnerKind::Steam => {
             let appid = g.steam_appid.ok_or("This Steam game has no app id")?;
-            argv = cfg.steam_command.iter().map(|a| config::expand(&a.replace("{appid}", &appid.to_string())).to_string_lossy().into_owned()).collect();
+            argv = cfg
+                .steam_command
+                .iter()
+                .map(|a| {
+                    config::expand(&a.replace("{appid}", &appid.to_string()))
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .collect();
             if argv.is_empty() {
                 return Err("steam_command is empty in config.toml".into());
             }
             // Steam owns these games' settings (launch options, Proton version).
-            return Ok(Plan { argv, env, workdir: None, opts: o, wineserver: None, prefix: None });
+            return Ok(Plan {
+                argv,
+                env,
+                workdir: None,
+                opts: o,
+                wineserver: None,
+                prefix: None,
+            });
         }
         RunnerKind::Command => {
             if g.command.is_empty() {
@@ -141,24 +170,42 @@ pub fn plan(g: &Game, cfg: &Config) -> Result<Plan, String> {
             prefix = Some(pfx.clone());
             if g.runner == RunnerKind::Proton {
                 let want = o.proton.clone().unwrap_or_else(|| "latest".into());
-                let build = runners::find_proton(&want).ok_or_else(|| format!("Proton build \"{want}\" not found"))?;
+                let build = runners::find_proton(&want)
+                    .ok_or_else(|| format!("Proton build \"{want}\" not found"))?;
                 wineserver = Some(build.path.join("files/bin/wineserver"));
                 if let Some(umu) = runners::umu() {
                     env.insert("PROTONPATH".into(), build.path.to_string_lossy().into());
-                    let gameid = g.steam_appid.map(|a| format!("umu-{a}")).unwrap_or_else(|| "umu-default".into());
+                    let gameid = g
+                        .steam_appid
+                        .map(|a| format!("umu-{a}"))
+                        .unwrap_or_else(|| "umu-default".into());
                     env.insert("GAMEID".into(), gameid);
                     env.insert("STORE".into(), "none".into());
                     argv = vec![umu.to_string_lossy().into(), exe.to_string_lossy().into()];
                 } else {
                     // Plain Proton: it wants a compat-data folder and uses <it>/pfx as the prefix.
                     env.remove("WINEPREFIX");
-                    env.insert("STEAM_COMPAT_DATA_PATH".into(), pfx.to_string_lossy().into());
-                    let steam = crate::scan::steam_root(cfg).unwrap_or_else(|| config::home().join(".local/share/Steam"));
-                    env.insert("STEAM_COMPAT_CLIENT_INSTALL_PATH".into(), steam.to_string_lossy().into());
-                    argv = vec![build.path.join("proton").to_string_lossy().into(), "waitforexitandrun".into(), exe.to_string_lossy().into()];
+                    env.insert(
+                        "STEAM_COMPAT_DATA_PATH".into(),
+                        pfx.to_string_lossy().into(),
+                    );
+                    let steam = crate::scan::steam_root(cfg)
+                        .unwrap_or_else(|| config::home().join(".local/share/Steam"));
+                    env.insert(
+                        "STEAM_COMPAT_CLIENT_INSTALL_PATH".into(),
+                        steam.to_string_lossy().into(),
+                    );
+                    argv = vec![
+                        build.path.join("proton").to_string_lossy().into(),
+                        "waitforexitandrun".into(),
+                        exe.to_string_lossy().into(),
+                    ];
                 }
                 if let Some(v) = o.fsr4 {
-                    env.insert("PROTON_FSR4_UPGRADE".into(), if v { "1" } else { "0" }.into());
+                    env.insert(
+                        "PROTON_FSR4_UPGRADE".into(),
+                        if v { "1" } else { "0" }.into(),
+                    );
                 }
                 if o.wine_wayland == Some(true) {
                     env.insert("PROTON_ENABLE_WAYLAND".into(), "1".into());
@@ -186,7 +233,8 @@ pub fn plan(g: &Game, cfg: &Config) -> Result<Plan, String> {
                 }
             } else {
                 let want = o.wine.clone().unwrap_or_else(|| "system".into());
-                let wine = runners::find_wine(&want).ok_or_else(|| format!("Wine build \"{want}\" not found"))?;
+                let wine = runners::find_wine(&want)
+                    .ok_or_else(|| format!("Wine build \"{want}\" not found"))?;
                 wineserver = wine.parent().map(|b| b.join("wineserver"));
                 argv = vec![wine.to_string_lossy().into(), exe.to_string_lossy().into()];
                 match o.sync.as_deref() {
@@ -255,12 +303,27 @@ pub fn plan(g: &Game, cfg: &Config) -> Result<Plan, String> {
         argv.insert(0, "gamemoderun".into());
     }
     if let Some(cpus) = o.cpu_set.as_ref().filter(|c| !c.trim().is_empty()) {
-        argv.splice(0..0, ["taskset".into(), "-c".into(), cpus.trim().to_string()]);
+        argv.splice(
+            0..0,
+            ["taskset".into(), "-c".into(), cpus.trim().to_string()],
+        );
     }
     if o.use_wrapper == Some(true) && !cfg.wrapper.is_empty() {
-        argv.splice(0..0, cfg.wrapper.iter().map(|a| config::expand(a).to_string_lossy().to_string()));
+        argv.splice(
+            0..0,
+            cfg.wrapper
+                .iter()
+                .map(|a| config::expand(a).to_string_lossy().to_string()),
+        );
     }
-    Ok(Plan { argv, env, workdir, opts: o, wineserver, prefix })
+    Ok(Plan {
+        argv,
+        env,
+        workdir,
+        opts: o,
+        wineserver,
+        prefix,
+    })
 }
 
 // ---- starting from the GUI / CLI ------------------------------------------------------------
@@ -278,7 +341,9 @@ pub fn detached(cmd: &mut Command) -> std::io::Result<()> {
             Ok(())
         });
     }
-    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     let mut child = cmd.spawn()?;
     // Reap it in the background so it never lingers as a zombie of the GUI.
     std::thread::spawn(move || {
@@ -292,15 +357,26 @@ fn running_path(id: &str) -> PathBuf {
 }
 
 fn write_running(id: &str, started: i64, phase: &str) {
-    let info = RunningInfo { id: id.into(), supervisor_pid: std::process::id() as i32, started, phase: phase.into() };
-    let _ = write_atomic(&running_path(id), serde_json::to_string(&info).unwrap_or_default().as_bytes());
+    let info = RunningInfo {
+        id: id.into(),
+        supervisor_pid: std::process::id() as i32,
+        started,
+        phase: phase.into(),
+    };
+    let _ = write_atomic(
+        &running_path(id),
+        serde_json::to_string(&info).unwrap_or_default().as_bytes(),
+    );
 }
 
 /// The supervisor (`hearth run <id>`). Blocks until the game is gone.
 pub fn run(id: &str) -> Result<(), String> {
     let cfg = Config::load();
     let lib = library::Library::load();
-    let g = lib.get(id).cloned().ok_or_else(|| format!("No game with id {id}"))?;
+    let g = lib
+        .get(id)
+        .cloned()
+        .ok_or_else(|| format!("No game with id {id}"))?;
     if library::running(id).is_some() {
         return Err(format!("{} is already running", g.name));
     }
@@ -317,7 +393,9 @@ pub fn run(id: &str) -> Result<(), String> {
 
 fn shell(cmd: &str, env: &BTreeMap<String, String>, wait: bool) {
     let mut c = Command::new("sh");
-    c.arg("-c").arg(cmd).envs(env.iter().filter(|(k, _)| k.as_str() != TAG));
+    c.arg("-c")
+        .arg(cmd)
+        .envs(env.iter().filter(|(k, _)| k.as_str() != TAG));
     if wait {
         let _ = c.status();
     } else {
@@ -344,11 +422,16 @@ fn supervise(g: &Game, p: &Plan, started: i64) -> Result<(), String> {
     }
 
     let mut cmd = Command::new(&p.argv[0]);
-    cmd.args(&p.argv[1..]).envs(&p.env).stdin(Stdio::null()).stdout(out).stderr(err);
+    cmd.args(&p.argv[1..])
+        .envs(&p.env)
+        .stdin(Stdio::null())
+        .stdout(out)
+        .stderr(err);
     if let Some(w) = &p.workdir
-        && w.is_dir() {
-            cmd.current_dir(w);
-        }
+        && w.is_dir()
+    {
+        cmd.current_dir(w);
+    }
     let nice = p.opts.nice.unwrap_or(0);
     unsafe {
         cmd.pre_exec(move || {
@@ -360,7 +443,9 @@ fn supervise(g: &Game, p: &Plan, started: i64) -> Result<(), String> {
         });
     }
     let t0 = Instant::now();
-    let mut child = cmd.spawn().map_err(|e| format!("Couldn't start {}: {e}", p.argv[0]))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Couldn't start {}: {e}", p.argv[0]))?;
     write_running(&g.id, started, "running");
 
     let steam = g.runner == RunnerKind::Steam;
@@ -375,10 +460,9 @@ fn supervise(g: &Game, p: &Plan, started: i64) -> Result<(), String> {
     let mut seen_steam_game = false;
     let mut idle_since: Option<Instant> = None;
     let ended: Instant = loop {
-        if !child_done
-            && let Ok(Some(_)) = child.try_wait() {
-                child_done = true;
-            }
+        if !child_done && let Ok(Some(_)) = child.try_wait() {
+            child_done = true;
+        }
         let alive = if steam {
             // steam://rungameid hands off to the Steam client; follow Steam's game reaper instead.
             let up = steam_game_running(g.steam_appid.unwrap_or(0));
@@ -418,53 +502,91 @@ fn supervise(g: &Game, p: &Plan, started: i64) -> Result<(), String> {
         kill_prefix(p);
     }
     // A game that dies within seconds probably didn't start: say so.
-    if !steam && t0.elapsed() < Duration::from_secs(5)
+    if !steam
+        && t0.elapsed() < Duration::from_secs(5)
         && let Ok(Some(st)) = child.try_wait()
-            && !st.success() {
-                return Err(format!("Exited right away ({st}). See the launch log."));
-            }
+        && !st.success()
+    {
+        return Err(format!("Exited right away ({st}). See the launch log."));
+    }
     Ok(())
 }
 
 fn kill_prefix(p: &Plan) {
     if let (Some(ws), Some(pfx)) = (&p.wineserver, &p.prefix)
-        && ws.is_file() {
-            let _ = Command::new(ws).arg("-k").env("WINEPREFIX", pfx).status();
-        }
+        && ws.is_file()
+    {
+        let _ = Command::new(ws).arg("-k").env("WINEPREFIX", pfx).status();
+    }
 }
 
 /// Wine/Proton plumbing that outlives games for a few seconds; ignored when deciding "still running".
 const INFRA: &[&str] = &[
-    "wineserver", "services.exe", "winedevice.exe", "plugplay.exe", "explorer.exe", "rpcss.exe", "svchost.exe", "tabtip.exe",
-    "conhost.exe", "rundll32.exe", "start.exe", "winedbg", "wineboot.exe", "mscorsvw.exe", "steam.exe", "pv-adverb", "srt-bwrap",
-    "reaper", "steam-runtime-l", "xdg-dbus-proxy",
+    "wineserver",
+    "services.exe",
+    "winedevice.exe",
+    "plugplay.exe",
+    "explorer.exe",
+    "rpcss.exe",
+    "svchost.exe",
+    "tabtip.exe",
+    "conhost.exe",
+    "rundll32.exe",
+    "start.exe",
+    "winedbg",
+    "wineboot.exe",
+    "mscorsvw.exe",
+    "steam.exe",
+    "pv-adverb",
+    "srt-bwrap",
+    "reaper",
+    "steam-runtime-l",
+    "xdg-dbus-proxy",
 ];
 
 /// PIDs of processes started for this game (tagged env), plumbing excluded.
 pub fn game_pids(id: &str) -> Vec<i32> {
-    tagged_pids(id).into_iter().filter(|(_, comm)| !INFRA.iter().any(|i| comm.eq_ignore_ascii_case(i))).map(|(p, _)| p).collect()
+    tagged_pids(id)
+        .into_iter()
+        .filter(|(_, comm)| !INFRA.iter().any(|i| comm.eq_ignore_ascii_case(i)))
+        .map(|(p, _)| p)
+        .collect()
 }
 
 fn tagged_pids(id: &str) -> Vec<(i32, String)> {
     let needle = format!("{TAG}={id}\0");
     let me = std::process::id() as i32;
     let mut out = vec![];
-    let Ok(rd) = std::fs::read_dir("/proc") else { return out };
+    let Ok(rd) = std::fs::read_dir("/proc") else {
+        return out;
+    };
     for e in rd.flatten() {
-        let Ok(pid) = e.file_name().to_string_lossy().parse::<i32>() else { continue };
+        let Ok(pid) = e.file_name().to_string_lossy().parse::<i32>() else {
+            continue;
+        };
         if pid == me {
             continue;
         }
-        let Ok(env) = std::fs::read(e.path().join("environ")) else { continue };
+        let Ok(env) = std::fs::read(e.path().join("environ")) else {
+            continue;
+        };
         if !contains(&env, needle.as_bytes()) {
             continue;
         }
         // Zombies keep their environ but are already gone.
         let stat = std::fs::read_to_string(e.path().join("stat")).unwrap_or_default();
-        if stat.rsplit(')').next().map(|r| r.trim_start().starts_with('Z')).unwrap_or(false) {
+        if stat
+            .rsplit(')')
+            .next()
+            .map(|r| r.trim_start().starts_with('Z'))
+            .unwrap_or(false)
+        {
             continue;
         }
-        let comm = std::fs::read_to_string(e.path().join("comm")).unwrap_or_default().trim().to_string();
+        let comm = std::fs::read_to_string(e.path().join("comm"))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         out.push((pid, comm));
     }
     out
@@ -472,7 +594,9 @@ fn tagged_pids(id: &str) -> Vec<(i32, String)> {
 
 fn contains(hay: &[u8], needle: &[u8]) -> bool {
     // environ starts at a var boundary; match at 0 or right after a NUL.
-    hay.windows(needle.len()).enumerate().any(|(i, w)| w == needle && (i == 0 || hay[i - 1] == 0))
+    hay.windows(needle.len())
+        .enumerate()
+        .any(|(i, w)| w == needle && (i == 0 || hay[i - 1] == 0))
 }
 
 fn steam_game_running(appid: u32) -> bool {
@@ -480,11 +604,16 @@ fn steam_game_running(appid: u32) -> bool {
         return false;
     }
     let needle = format!("AppId={appid}");
-    let Ok(rd) = std::fs::read_dir("/proc") else { return false };
+    let Ok(rd) = std::fs::read_dir("/proc") else {
+        return false;
+    };
     rd.flatten().any(|e| {
         e.file_name().to_string_lossy().parse::<i32>().is_ok()
             && std::fs::read(e.path().join("cmdline"))
-                .map(|c| c.split(|b| *b == 0).any(|a| a == needle.as_bytes()) && c.windows(10).any(|w| w == b"SteamLaunc"))
+                .map(|c| {
+                    c.split(|b| *b == 0).any(|a| a == needle.as_bytes())
+                        && c.windows(10).any(|w| w == b"SteamLaunc")
+                })
                 .unwrap_or(false)
     })
 }
@@ -515,27 +644,35 @@ pub fn stop(id: &str) -> Result<(), String> {
         unsafe { libc::kill(p, libc::SIGKILL) };
     }
     if g.runner.is_windows()
-        && let Ok(p) = plan(&g, &cfg) {
-            kill_prefix(&p);
-        }
+        && let Ok(p) = plan(&g, &cfg)
+    {
+        kill_prefix(&p);
+    }
     Ok(())
 }
 
 fn steam_reapers(appid: u32) -> Vec<i32> {
     let needle = format!("AppId={appid}");
-    let Ok(rd) = std::fs::read_dir("/proc") else { return vec![] };
+    let Ok(rd) = std::fs::read_dir("/proc") else {
+        return vec![];
+    };
     rd.flatten()
         .filter_map(|e| {
             let pid = e.file_name().to_string_lossy().parse::<i32>().ok()?;
             let c = std::fs::read(e.path().join("cmdline")).ok()?;
             let first = c.split(|b| *b == 0).next()?;
-            (first.ends_with(b"reaper") && c.split(|b| *b == 0).any(|a| a == needle.as_bytes())).then_some(pid)
+            (first.ends_with(b"reaper") && c.split(|b| *b == 0).any(|a| a == needle.as_bytes()))
+                .then_some(pid)
         })
         .collect()
 }
 
 pub fn notify(title: &str, body: &str) {
-    let _ = Command::new("notify-send").args(["-a", "Hearth", "-i", "applications-games", title, body]).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+    let _ = Command::new("notify-send")
+        .args(["-a", "Hearth", "-i", "applications-games", title, body])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
 }
 
 /// Run an arbitrary .exe (patch, trainer, config tool) inside a game's prefix with its Proton/Wine.
@@ -584,14 +721,32 @@ pub fn prefix_tool(g: &Game, cfg: &Config, tool: &str) -> Result<(), String> {
         match runners::umu() {
             Some(u) => vec![u.to_string_lossy().into(), tool.into()],
             None => {
-                let wine = p.wineserver.as_ref().and_then(|w| w.parent()).map(|b| b.join("wine")).ok_or("No wine")?;
-                env.insert("WINEPREFIX".into(), pfx.join("pfx").to_string_lossy().into());
+                let wine = p
+                    .wineserver
+                    .as_ref()
+                    .and_then(|w| w.parent())
+                    .map(|b| b.join("wine"))
+                    .ok_or("No wine")?;
+                env.insert(
+                    "WINEPREFIX".into(),
+                    pfx.join("pfx").to_string_lossy().into(),
+                );
                 vec![wine.to_string_lossy().into(), tool.into()]
             }
         }
     } else {
-        let want = g.options.over(&cfg.defaults).wine.unwrap_or_else(|| "system".into());
-        vec![runners::find_wine(&want).ok_or("No wine")?.to_string_lossy().into(), tool.into()]
+        let want = g
+            .options
+            .over(&cfg.defaults)
+            .wine
+            .unwrap_or_else(|| "system".into());
+        vec![
+            runners::find_wine(&want)
+                .ok_or("No wine")?
+                .to_string_lossy()
+                .into(),
+            tool.into(),
+        ]
     };
     let mut cmd = Command::new(&argv[0]);
     cmd.args(&argv[1..]).envs(env);
@@ -603,6 +758,9 @@ mod tests {
     use super::*;
     #[test]
     fn args() {
-        assert_eq!(split_args(r#"-a "b c" 'd e' f\ g"#), vec!["-a", "b c", "d e", "f g"]);
+        assert_eq!(
+            split_args(r#"-a "b c" 'd e' f\ g"#),
+            vec!["-a", "b c", "d e", "f g"]
+        );
     }
 }

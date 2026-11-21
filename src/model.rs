@@ -53,8 +53,13 @@ pub enum RunnerKind {
 }
 
 impl RunnerKind {
-    pub const ALL: [RunnerKind; 5] =
-        [RunnerKind::Proton, RunnerKind::Wine, RunnerKind::Native, RunnerKind::Steam, RunnerKind::Command];
+    pub const ALL: [RunnerKind; 5] = [
+        RunnerKind::Proton,
+        RunnerKind::Wine,
+        RunnerKind::Native,
+        RunnerKind::Steam,
+        RunnerKind::Command,
+    ];
     pub fn label(self) -> &'static str {
         match self {
             RunnerKind::Steam => "Steam",
@@ -282,23 +287,26 @@ pub fn slugify(s: &str) -> String {
     while out.ends_with('-') {
         out.pop();
     }
-    if out.is_empty() {
-        "game".into()
-    } else {
-        out
-    }
+    if out.is_empty() { "game".into() } else { out }
 }
 
 /// Letters and digits only, for fuzzy name matching ("Hollow Knight - Silksong" == "Hollow Knight: Silksong").
 pub fn squash(s: &str) -> String {
-    s.chars().filter(|c| c.is_alphanumeric()).flat_map(|c| c.to_lowercase()).collect()
+    s.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(|c| c.to_lowercase())
+        .collect()
 }
 
 /// Strip repack tags and version noise from a folder/setup name.
 /// "The Genesis Order [FitGirl Repack]" -> "The Genesis Order"
 pub fn clean_title(raw: &str) -> String {
     // Scene-style names ("Some.Game.v1.2") use dots as spaces; normal titles keep theirs ("Mr. X").
-    let mut s = if raw.contains(' ') { raw.replace('_', " ") } else { raw.replace(['_', '.'], " ") };
+    let mut s = if raw.contains(' ') {
+        raw.replace('_', " ")
+    } else {
+        raw.replace(['_', '.'], " ")
+    };
     // Drop bracketed/parenthesised chunks: [FitGirl Repack], (v1.2.3), [DODI], ...
     loop {
         let open = s.find(['[', '(']);
@@ -314,26 +322,38 @@ pub fn clean_title(raw: &str) -> String {
     }
     // Drop trailing " - v1.2", " v1.0.3", " Build 123", "+ 5 DLCs"
     let lower = s.to_lowercase();
-    for pat in [" - v", " v1", " v2", " v0", " build ", " + ", " update ", "-repack", " repack"] {
+    for pat in [
+        " - v", " v1", " v2", " v0", " build ", " + ", " update ", "-repack", " repack",
+    ] {
         if let Some(i) = lower.find(pat)
-            && i > 2 {
-                s.truncate(i);
-                break;
-            }
+            && i > 2
+        {
+            s.truncate(i);
+            break;
+        }
     }
     let s = s.split_whitespace().collect::<Vec<_>>().join(" ");
-    s.trim_matches(|c: char| c == '-' || c.is_whitespace()).to_string()
+    s.trim_matches(|c: char| c == '-' || c.is_whitespace())
+        .to_string()
 }
 
 pub fn fmt_playtime(secs: u64) -> String {
     let m = secs / 60;
     if m == 0 {
-        if secs == 0 { "Never played".into() } else { "< 1 min".into() }
+        if secs == 0 {
+            "Never played".into()
+        } else {
+            "< 1 min".into()
+        }
     } else if m < 60 {
         format!("{m} min")
     } else {
         let h = m as f64 / 60.0;
-        if h < 10.0 { format!("{h:.1} h") } else { format!("{} h", h.round() as u64) }
+        if h < 10.0 {
+            format!("{h:.1} h")
+        } else {
+            format!("{} h", h.round() as u64)
+        }
     }
 }
 
@@ -358,20 +378,35 @@ mod tests {
     use super::*;
     #[test]
     fn titles() {
-        assert_eq!(clean_title("The Genesis Order [FitGirl Repack]"), "The Genesis Order");
-        assert_eq!(clean_title("The Legend of Zelda - Ocarina of Time [FitGirl Switch 2 Repack]"), "The Legend of Zelda - Ocarina of Time");
+        assert_eq!(
+            clean_title("The Genesis Order [FitGirl Repack]"),
+            "The Genesis Order"
+        );
+        assert_eq!(
+            clean_title("The Legend of Zelda - Ocarina of Time [FitGirl Switch 2 Repack]"),
+            "The Legend of Zelda - Ocarina of Time"
+        );
         assert_eq!(clean_title("Some_Game_v1.2.3_(Build 55)"), "Some Game");
-        assert_eq!(clean_title("Hollow Knight - Silksong"), "Hollow Knight - Silksong");
+        assert_eq!(
+            clean_title("Hollow Knight - Silksong"),
+            "Hollow Knight - Silksong"
+        );
     }
     #[test]
     fn slugs() {
         assert_eq!(slugify("Hollow Knight: Silksong"), "hollow-knight-silksong");
-        assert_eq!(squash("Hollow Knight - Silksong"), squash("Hollow Knight: Silksong"));
+        assert_eq!(
+            squash("Hollow Knight - Silksong"),
+            squash("Hollow Knight: Silksong")
+        );
     }
     #[test]
     fn merge() {
         let d = LaunchOptions::global_defaults();
-        let g = LaunchOptions { mangohud: Some(true), ..Default::default() };
+        let g = LaunchOptions {
+            mangohud: Some(true),
+            ..Default::default()
+        };
         let m = g.over(&d);
         assert_eq!(m.mangohud, Some(true));
         assert_eq!(m.gamemode, Some(true));

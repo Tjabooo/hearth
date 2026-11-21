@@ -1,17 +1,28 @@
 //! Small modal windows: install from .exe, add game, confirm, show command, file pickers.
 
-use gtk4 as gtk;
-use super::{button, label, settings, AppRc};
+use super::{AppRc, button, label, settings};
 use crate::config::{expand, tilde};
 use crate::library::{self, Art};
-use crate::model::{clean_title, now, Game, RunnerKind, Source};
+use crate::model::{Game, RunnerKind, Source, clean_title, now};
 use crate::{install, launch, runners};
 use gtk::{gio, glib, prelude::*};
+use gtk4 as gtk;
 use std::path::{Path, PathBuf};
 
 /// A modal window in the deck style: header (title, sub, ✕), body, footer. Esc closes.
-pub fn modal(app: &AppRc, title: &str, sub: &str, w: i32, h: i32) -> (gtk::Window, gtk::Box, gtk::Box) {
-    let win = gtk::Window::builder().transient_for(&app.window).modal(true).title(title).default_width(w).build();
+pub fn modal(
+    app: &AppRc,
+    title: &str,
+    sub: &str,
+    w: i32,
+    h: i32,
+) -> (gtk::Window, gtk::Box, gtk::Box) {
+    let win = gtk::Window::builder()
+        .transient_for(&app.window)
+        .modal(true)
+        .title(title)
+        .default_width(w)
+        .build();
     if h > 0 {
         win.set_default_height(h);
     }
@@ -85,7 +96,13 @@ pub fn file_filter(name: &str, patterns: &[&str]) -> gtk::FileFilter {
 }
 
 /// Open-file picker. `filters` first entry is the default.
-pub fn pick_file(app: &AppRc, title: &str, start: Option<PathBuf>, filters: Vec<gtk::FileFilter>, done: impl FnOnce(PathBuf) + 'static) {
+pub fn pick_file(
+    app: &AppRc,
+    title: &str,
+    start: Option<PathBuf>,
+    filters: Vec<gtk::FileFilter>,
+    done: impl FnOnce(PathBuf) + 'static,
+) {
     let d = gtk::FileDialog::builder().title(title).modal(true).build();
     if let Some(s) = start.filter(|p| p.is_dir()) {
         d.set_initial_folder(Some(&gio::File::for_path(s)));
@@ -105,7 +122,12 @@ pub fn pick_file(app: &AppRc, title: &str, start: Option<PathBuf>, filters: Vec<
     });
 }
 
-pub fn pick_folder(parent: &impl IsA<gtk::Window>, title: &str, start: Option<PathBuf>, done: impl FnOnce(PathBuf) + 'static) {
+pub fn pick_folder(
+    parent: &impl IsA<gtk::Window>,
+    title: &str,
+    start: Option<PathBuf>,
+    done: impl FnOnce(PathBuf) + 'static,
+) {
     let d = gtk::FileDialog::builder().title(title).modal(true).build();
     if let Some(s) = start.filter(|p| p.is_dir()) {
         d.set_initial_folder(Some(&gio::File::for_path(s)));
@@ -121,29 +143,57 @@ pub fn pick_folder(parent: &impl IsA<gtk::Window>, title: &str, start: Option<Pa
 
 /// Windows path an installer will be pointed at (mirrors install.rs: X: maps to the drive target).
 fn target_win(cfg: &crate::config::Config, target: &Path) -> String {
-    let letter = cfg.install_drive.chars().next().unwrap_or('x').to_ascii_uppercase();
+    let letter = cfg
+        .install_drive
+        .chars()
+        .next()
+        .unwrap_or('x')
+        .to_ascii_uppercase();
     let drive = expand(&cfg.install_drive_target);
     match target.strip_prefix(&drive) {
         Ok(rel) => format!("{letter}:\\{}", rel.to_string_lossy().replace('/', "\\")),
-        Err(_) => format!("{letter}:\\{}", target.file_name().unwrap_or_default().to_string_lossy()),
+        Err(_) => format!(
+            "{letter}:\\{}",
+            target.file_name().unwrap_or_default().to_string_lossy()
+        ),
     }
 }
 
 fn safe_name(n: &str) -> String {
-    n.chars().map(|c| if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') { ' ' } else { c }).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ")
+    n.chars()
+        .map(|c| {
+            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub fn install_flow(app: &AppRc) {
     let start = expand(&app.cfg.borrow().downloads_dir);
     let a = app.clone();
-    pick_file(app, "Pick the installer (.exe)", Some(start), vec![file_filter("Windows installers", &["*.exe", "*.msi"])], move |p| install_dialog(&a, p));
+    pick_file(
+        app,
+        "Pick the installer (.exe)",
+        Some(start),
+        vec![file_filter("Windows installers", &["*.exe", "*.msi"])],
+        move |p| install_dialog(&a, p),
+    );
 }
 
 pub fn install_dialog(app: &AppRc, setup: PathBuf) {
     let cfg = app.cfg.borrow().clone();
     let (win, body, foot) = modal(app, "INSTALL FROM .EXE", &tilde(&setup), 640, -1);
 
-    let note = label("The installer opens in a fresh Proton prefix. Keep the folder it suggests and hearth adds the game when the installer closes.", "note");
+    let note = label(
+        "The installer opens in a fresh Proton prefix. Keep the folder it suggests and hearth adds the game when the installer closes.",
+        "note",
+    );
     note.set_wrap(true);
     note.set_max_width_chars(70);
     body.append(&note);
@@ -156,9 +206,15 @@ pub fn install_dialog(app: &AppRc, setup: PathBuf) {
     name.set_text(&install::guess_name(&setup));
     name.set_hexpand(true);
     let builds: Vec<String> = runners::protons().into_iter().map(|b| b.name).collect();
-    let mut labels = vec![builds.first().map(|b| format!("Latest ({b})")).unwrap_or_else(|| "Latest".into())];
+    let mut labels = vec![
+        builds
+            .first()
+            .map(|b| format!("Latest ({b})"))
+            .unwrap_or_else(|| "Latest".into()),
+    ];
     labels.extend(builds.iter().cloned());
-    let proton = gtk::DropDown::from_strings(&labels.iter().map(String::as_str).collect::<Vec<_>>());
+    let proton =
+        gtk::DropDown::from_strings(&labels.iter().map(String::as_str).collect::<Vec<_>>());
     let prefix = gtk::Entry::new();
     prefix.set_hexpand(true);
     let pbrowse = button("󰉋", "");
@@ -172,7 +228,14 @@ pub fn install_dialog(app: &AppRc, setup: PathBuf) {
     target_sub.set_max_width_chars(60);
     target.set_max_width_chars(60);
 
-    for (i, (k, w)) in [("NAME", name.clone().upcast::<gtk::Widget>()), ("PROTON", proton.clone().upcast()), ("PREFIX", pbox.clone().upcast())].into_iter().enumerate() {
+    for (i, (k, w)) in [
+        ("NAME", name.clone().upcast::<gtk::Widget>()),
+        ("PROTON", proton.clone().upcast()),
+        ("PREFIX", pbox.clone().upcast()),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let kl = label(k, "k");
         kl.set_valign(gtk::Align::Center);
         grid.attach(&kl, 0, i as i32, 1, 1);
@@ -188,7 +251,10 @@ pub fn install_dialog(app: &AppRc, setup: PathBuf) {
     body.append(&grid);
 
     if builds.is_empty() {
-        let warn = label("No Proton build found. Install GE-Proton (e.g. with ProtonUp-Qt) first.", "note");
+        let warn = label(
+            "No Proton build found. Install GE-Proton (e.g. with ProtonUp-Qt) first.",
+            "note",
+        );
         warn.set_wrap(true);
         warn.set_max_width_chars(70);
         body.append(&warn);
@@ -199,7 +265,14 @@ pub fn install_dialog(app: &AppRc, setup: PathBuf) {
     let install_root = expand(&cfg.install_root);
     let auto = std::rc::Rc::new(std::cell::Cell::new(true));
     let update = {
-        let (name, prefix, target, target_sub, auto, cfg) = (name.clone(), prefix.clone(), target.clone(), target_sub.clone(), auto.clone(), cfg.clone());
+        let (name, prefix, target, target_sub, auto, cfg) = (
+            name.clone(),
+            prefix.clone(),
+            target.clone(),
+            target_sub.clone(),
+            auto.clone(),
+            cfg.clone(),
+        );
         move || {
             let n = safe_name(&name.text());
             if auto.get() {
@@ -208,7 +281,10 @@ pub fn install_dialog(app: &AppRc, setup: PathBuf) {
             }
             let t = install_root.join(&n);
             target.set_text(&target_win(&cfg, &t));
-            target_sub.set_text(&format!("= {}  ·  pre-filled for Inno Setup (FitGirl, DODI) and NSIS installers", tilde(&t)));
+            target_sub.set_text(&format!(
+                "= {}  ·  pre-filled for Inno Setup (FitGirl, DODI) and NSIS installers",
+                tilde(&t)
+            ));
         }
     };
     update();
@@ -233,10 +309,15 @@ pub fn install_dialog(app: &AppRc, setup: PathBuf) {
         pbrowse.connect_clicked(move |_| {
             let p2 = prefix.clone();
             let auto = auto.clone();
-            pick_folder(&win2, "Prefix folder", Some(expand(&prefix.text())).and_then(|p| p.parent().map(Path::to_path_buf)), move |p| {
-                auto.set(false);
-                p2.set_text(&tilde(&p));
-            });
+            pick_folder(
+                &win2,
+                "Prefix folder",
+                Some(expand(&prefix.text())).and_then(|p| p.parent().map(Path::to_path_buf)),
+                move |p| {
+                    auto.set(false);
+                    p2.set_text(&tilde(&p));
+                },
+            );
         });
     }
 
@@ -280,48 +361,121 @@ pub fn install_dialog(app: &AppRc, setup: PathBuf) {
 // ── add a game by hand ────────────────────────────────────────────────────────────────────
 
 pub fn add_game(app: &AppRc) {
-    let start = app.cfg.borrow().game_dirs().into_iter().find(|p| p.is_dir());
+    let start = app
+        .cfg
+        .borrow()
+        .game_dirs()
+        .into_iter()
+        .find(|p| p.is_dir());
     let a = app.clone();
     let filters = vec![
-        file_filter("Games (.exe, AppImage, scripts)", &["*.exe", "*.AppImage", "*.appimage", "*.sh", "*.x86_64", "*.x86", "*"]),
+        file_filter(
+            "Games (.exe, AppImage, scripts)",
+            &[
+                "*.exe",
+                "*.AppImage",
+                "*.appimage",
+                "*.sh",
+                "*.x86_64",
+                "*.x86",
+                "*",
+            ],
+        ),
         file_filter("Windows .exe", &["*.exe"]),
     ];
-    pick_file(app, "Pick the game's .exe, AppImage or launcher", start, filters, move |p| {
-        let is_exe = p.extension().map(|e| e.eq_ignore_ascii_case("exe") || e.eq_ignore_ascii_case("bat") || e.eq_ignore_ascii_case("msi")).unwrap_or(false);
-        let dir = p.parent().map(Path::to_path_buf);
-        let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        // Generic exe names ("Game.exe", "launcher") -> use the folder name.
-        let generic = ["game", "launcher", "start", "play", "run", "setup", "main"].contains(&stem.to_lowercase().as_str()) || stem.len() <= 3;
-        let raw = if generic { dir.as_ref().and_then(|d| d.file_name()).map(|s| s.to_string_lossy().to_string()).unwrap_or(stem) } else { stem };
-        let name = clean_title(&raw);
-        let runner = if is_exe { RunnerKind::Proton } else { RunnerKind::Native };
-        let prefix = if is_exe { crate::scan::prefix_of(&p) } else { None };
-        let mut g = Game { name: if name.is_empty() { "New game".into() } else { name }, source: Source::Manual, runner, exe: Some(p.clone()), install_dir: dir, prefix, added: now(), ..Default::default() };
-        g.id = a.lib.borrow().new_id(&g.name);
-        if let Err(e) = a.lib.borrow_mut().upsert(g.clone()) {
-            super::toast(&a, &format!("Couldn't save: {e}"));
-            return;
-        }
-        super::select(&a, &g.id);
-        settings::game_dialog(&a, &g.id);
-        // Try to find art in the background.
-        if a.cfg.borrow().fetch_art {
-            let (a2, g2) = (a.clone(), g.clone());
-            glib::spawn_future_local(async move {
-                if gio::spawn_blocking(move || crate::art::fetch_for(&g2)).await.unwrap_or(false) {
-                    super::refresh_grid(&a2);
-                }
-            });
-        }
-    });
+    pick_file(
+        app,
+        "Pick the game's .exe, AppImage or launcher",
+        start,
+        filters,
+        move |p| {
+            let is_exe = p
+                .extension()
+                .map(|e| {
+                    e.eq_ignore_ascii_case("exe")
+                        || e.eq_ignore_ascii_case("bat")
+                        || e.eq_ignore_ascii_case("msi")
+                })
+                .unwrap_or(false);
+            let dir = p.parent().map(Path::to_path_buf);
+            let stem = p
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            // Generic exe names ("Game.exe", "launcher") -> use the folder name.
+            let generic = ["game", "launcher", "start", "play", "run", "setup", "main"]
+                .contains(&stem.to_lowercase().as_str())
+                || stem.len() <= 3;
+            let raw = if generic {
+                dir.as_ref()
+                    .and_then(|d| d.file_name())
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or(stem)
+            } else {
+                stem
+            };
+            let name = clean_title(&raw);
+            let runner = if is_exe {
+                RunnerKind::Proton
+            } else {
+                RunnerKind::Native
+            };
+            let prefix = if is_exe {
+                crate::scan::prefix_of(&p)
+            } else {
+                None
+            };
+            let mut g = Game {
+                name: if name.is_empty() {
+                    "New game".into()
+                } else {
+                    name
+                },
+                source: Source::Manual,
+                runner,
+                exe: Some(p.clone()),
+                install_dir: dir,
+                prefix,
+                added: now(),
+                ..Default::default()
+            };
+            g.id = a.lib.borrow().new_id(&g.name);
+            if let Err(e) = a.lib.borrow_mut().upsert(g.clone()) {
+                super::toast(&a, &format!("Couldn't save: {e}"));
+                return;
+            }
+            super::select(&a, &g.id);
+            settings::game_dialog(&a, &g.id);
+            // Try to find art in the background.
+            if a.cfg.borrow().fetch_art {
+                let (a2, g2) = (a.clone(), g.clone());
+                glib::spawn_future_local(async move {
+                    if gio::spawn_blocking(move || crate::art::fetch_for(&g2))
+                        .await
+                        .unwrap_or(false)
+                    {
+                        super::refresh_grid(&a2);
+                    }
+                });
+            }
+        },
+    );
 }
 
 // ── actions ───────────────────────────────────────────────────────────────────────────────
 
 pub fn confirm_remove(app: &AppRc, id: &str) {
-    let Some(g) = app.lib.borrow().get(id).cloned() else { return };
+    let Some(g) = app.lib.borrow().get(id).cloned() else {
+        return;
+    };
     let (win, body, foot) = modal(app, "REMOVE FROM LIBRARY", &g.name, 480, -1);
-    let t = label(&format!("Remove {} from hearth? Files, saves and the prefix stay on disk, and scans won't add it back.", g.name), "");
+    let t = label(
+        &format!(
+            "Remove {} from hearth? Files, saves and the prefix stay on disk, and scans won't add it back.",
+            g.name
+        ),
+        "",
+    );
     t.set_wrap(true);
     body.append(&t);
     let cancel = button("CANCEL", "");
@@ -346,7 +500,9 @@ pub fn confirm_remove(app: &AppRc, id: &str) {
 }
 
 pub fn show_command(app: &AppRc, id: &str) {
-    let Some(g) = app.lib.borrow().get(id).cloned() else { return };
+    let Some(g) = app.lib.borrow().get(id).cloned() else {
+        return;
+    };
     let cfg = app.cfg.borrow().clone();
     let (text, wd) = match launch::plan(&g, &cfg) {
         Ok(p) => (p.render(), p.workdir.map(|w| tilde(&w))),
@@ -379,40 +535,69 @@ pub fn show_command(app: &AppRc, id: &str) {
 }
 
 pub fn run_exe_in_prefix(app: &AppRc, id: &str) {
-    let Some(g) = app.lib.borrow().get(id).cloned() else { return };
-    let start = g.install_dir.clone().or_else(|| Some(expand(&app.cfg.borrow().downloads_dir)));
+    let Some(g) = app.lib.borrow().get(id).cloned() else {
+        return;
+    };
+    let start = g
+        .install_dir
+        .clone()
+        .or_else(|| Some(expand(&app.cfg.borrow().downloads_dir)));
     let a = app.clone();
-    pick_file(app, &format!("Run an .exe in {}'s prefix", g.name), start, vec![file_filter("Windows programs", &["*.exe", "*.msi", "*.bat"])], move |p| {
-        let cfg = a.cfg.borrow().clone();
-        match launch::run_in_prefix(&g, &cfg, &p) {
-            Ok(()) => super::toast(&a, &format!("Running {}", p.file_name().unwrap_or_default().to_string_lossy())),
-            Err(e) => super::toast(&a, &e),
-        }
-    });
+    pick_file(
+        app,
+        &format!("Run an .exe in {}'s prefix", g.name),
+        start,
+        vec![file_filter(
+            "Windows programs",
+            &["*.exe", "*.msi", "*.bat"],
+        )],
+        move |p| {
+            let cfg = a.cfg.borrow().clone();
+            match launch::run_in_prefix(&g, &cfg, &p) {
+                Ok(()) => super::toast(
+                    &a,
+                    &format!(
+                        "Running {}",
+                        p.file_name().unwrap_or_default().to_string_lossy()
+                    ),
+                ),
+                Err(e) => super::toast(&a, &e),
+            }
+        },
+    );
 }
 
 pub fn change_cover(app: &AppRc, id: &str) {
     let id = id.to_string();
     let a = app.clone();
     let start = Some(crate::config::home().join("Pictures"));
-    pick_file(app, "Pick a cover image (portrait, 2:3)", start, vec![file_filter("Images", &["*.jpg", "*.jpeg", "*.png", "*.webp"])], move |p| {
-        let dst = library::art_path(&id, Art::Cover);
-        if let Some(d) = dst.parent() {
-            let _ = std::fs::create_dir_all(d);
-        }
-        // Normalise to the cache file name; GdkPixbuf reads any format regardless of extension.
-        match std::fs::copy(&p, &dst) {
-            Ok(_) => {
-                // An explicit override would win over the cache file: drop it.
-                let g = a.lib.borrow().get(&id).cloned();
-                if let Some(mut g) = g.filter(|g| g.cover.is_some()) {
-                    g.cover = None;
-                    let _ = a.lib.borrow_mut().upsert(g);
-                }
-                a.images.forget(&dst);
-                super::refresh_grid(&a);
+    pick_file(
+        app,
+        "Pick a cover image (portrait, 2:3)",
+        start,
+        vec![file_filter(
+            "Images",
+            &["*.jpg", "*.jpeg", "*.png", "*.webp"],
+        )],
+        move |p| {
+            let dst = library::art_path(&id, Art::Cover);
+            if let Some(d) = dst.parent() {
+                let _ = std::fs::create_dir_all(d);
             }
-            Err(e) => super::toast(&a, &format!("Couldn't copy: {e}")),
-        }
-    });
+            // Normalise to the cache file name; GdkPixbuf reads any format regardless of extension.
+            match std::fs::copy(&p, &dst) {
+                Ok(_) => {
+                    // An explicit override would win over the cache file: drop it.
+                    let g = a.lib.borrow().get(&id).cloned();
+                    if let Some(mut g) = g.filter(|g| g.cover.is_some()) {
+                        g.cover = None;
+                        let _ = a.lib.borrow_mut().upsert(g);
+                    }
+                    a.images.forget(&dst);
+                    super::refresh_grid(&a);
+                }
+                Err(e) => super::toast(&a, &format!("Couldn't copy: {e}")),
+            }
+        },
+    );
 }

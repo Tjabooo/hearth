@@ -1,8 +1,8 @@
 //! Cover art for non-Steam games: look the title up on the Steam store and cache its library art.
 //! Only the game title is sent. Uses curl (no TLS stack in the binary).
 
-use crate::library::{art_path, Art};
-use crate::model::{squash, Game, RunnerKind};
+use crate::library::{Art, art_path};
+use crate::model::{Game, RunnerKind, squash};
 use std::path::Path;
 use std::process::Command;
 
@@ -12,13 +12,24 @@ fn curl_to(url: &str, dst: &Path) -> bool {
     }
     let tmp = dst.with_extension("part");
     let ok = Command::new("curl")
-        .args(["-fsL", "--max-time", "20", "-A", "hearth-game-launcher", "-o"])
+        .args([
+            "-fsL",
+            "--max-time",
+            "20",
+            "-A",
+            "hearth-game-launcher",
+            "-o",
+        ])
         .arg(&tmp)
         .arg(url)
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
-    if ok && std::fs::metadata(&tmp).map(|m| m.len() > 1024).unwrap_or(false) {
+    if ok
+        && std::fs::metadata(&tmp)
+            .map(|m| m.len() > 1024)
+            .unwrap_or(false)
+    {
         std::fs::rename(&tmp, dst).is_ok()
     } else {
         let _ = std::fs::remove_file(&tmp);
@@ -29,14 +40,45 @@ fn curl_to(url: &str, dst: &Path) -> bool {
 /// Best Steam app id for a title (exact-ish name match only, so we never show the wrong game).
 pub fn steam_lookup(title: &str) -> Option<u32> {
     // Store search chokes on some punctuation ("Hollow Knight - Silksong"): retry with words only.
-    let words: String = title.chars().map(|c| if c.is_alphanumeric() || c == '\'' { c } else { ' ' }).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ");
+    let words: String = title
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '\'' {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     steam_search(title).or_else(|| (words != title).then(|| steam_search(&words)).flatten())
 }
 
 fn steam_search(title: &str) -> Option<u32> {
-    let q: String = title.bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else { format!("%{b:02X}") }).collect();
+    let q: String = title
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect();
     let url = format!("https://store.steampowered.com/api/storesearch/?term={q}&l=english&cc=US");
-    let out = Command::new("curl").args(["-fsSL", "--max-time", "15", "-A", "hearth-game-launcher", &url]).output().ok()?;
+    let out = Command::new("curl")
+        .args([
+            "-fsSL",
+            "--max-time",
+            "15",
+            "-A",
+            "hearth-game-launcher",
+            &url,
+        ])
+        .output()
+        .ok()?;
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
     let items = v.get("items")?.as_array()?;
     let want = squash(title);
@@ -63,7 +105,10 @@ fn steam_search(title: &str) -> Option<u32> {
 
 /// Download missing art for one game. Returns true if anything new arrived.
 pub fn fetch_for(g: &Game) -> bool {
-    let need: Vec<Art> = [Art::Cover, Art::Hero, Art::Logo].into_iter().filter(|k| !art_path(&g.id, *k).is_file()).collect();
+    let need: Vec<Art> = [Art::Cover, Art::Hero, Art::Logo]
+        .into_iter()
+        .filter(|k| !art_path(&g.id, *k).is_file())
+        .collect();
     if need.is_empty() {
         return false;
     }
@@ -96,7 +141,10 @@ pub fn fetch_for(g: &Game) -> bool {
 pub fn fetch_missing(games: &[Game]) -> Vec<String> {
     games
         .iter()
-        .filter(|g| g.cover.is_none() && (!art_path(&g.id, Art::Cover).is_file() || !art_path(&g.id, Art::Hero).is_file()))
+        .filter(|g| {
+            g.cover.is_none()
+                && (!art_path(&g.id, Art::Cover).is_file() || !art_path(&g.id, Art::Hero).is_file())
+        })
         .filter(|g| {
             let marker = art_path(&g.id, Art::Cover).with_file_name(".looked-up");
             if marker.exists() {

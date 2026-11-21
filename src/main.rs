@@ -53,7 +53,13 @@ fn main() {
             let lib = library::Library::load();
             for g in &lib.games {
                 let st = lib.stats(&g.id);
-                println!("{:<40} {:<8} {:<10} {}", g.id, g.runner.label(), model::fmt_playtime(st.total_secs()), g.name);
+                println!(
+                    "{:<40} {:<8} {:<10} {}",
+                    g.id,
+                    g.runner.label(),
+                    model::fmt_playtime(st.total_secs()),
+                    g.name
+                );
             }
             0
         }
@@ -62,7 +68,11 @@ fn main() {
             if args.iter().any(|a| a == "--dry-run") {
                 let cfg = config::Config::load();
                 let lib = library::Library::load();
-                match lib.get(id).ok_or("unknown game".to_string()).and_then(|g| launch::plan(g, &cfg)) {
+                match lib
+                    .get(id)
+                    .ok_or("unknown game".to_string())
+                    .and_then(|g| launch::plan(g, &cfg))
+                {
                     Ok(p) => {
                         println!("{}", p.render());
                         if let Some(w) = &p.workdir {
@@ -102,7 +112,10 @@ fn main() {
             }
         },
         Some("install") if args.len() >= 2 => {
-            let mut req = install::Request { setup: PathBuf::from(&args[1]), ..Default::default() };
+            let mut req = install::Request {
+                setup: PathBuf::from(&args[1]),
+                ..Default::default()
+            };
             let mut job = None;
             let mut it = args[2..].iter();
             while let Some(a) = it.next() {
@@ -134,7 +147,12 @@ fn main() {
             }
             println!("Tools:");
             for (n, p) in runners::tools() {
-                println!("  {:<28} {}", n, p.map(|p| p.display().to_string()).unwrap_or_else(|| "missing".into()));
+                println!(
+                    "  {:<28} {}",
+                    n,
+                    p.map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "missing".into())
+                );
             }
             0
         }

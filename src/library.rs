@@ -1,7 +1,7 @@
 //! Loading/saving games and stats, art lookup, and merging scan results.
 
-use crate::config::{self, write_atomic, Config};
-use crate::model::{now, slugify, Game, RunningInfo, Source, Stats};
+use crate::config::{self, Config, write_atomic};
+use crate::model::{Game, RunningInfo, Source, Stats, now, slugify};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -86,7 +86,9 @@ impl Library {
         match self.games.iter_mut().find(|x| x.id == g.id) {
             Some(x) => *x = g,
             None => {
-                self.stats.entry(g.id.clone()).or_insert_with(|| load_stats(&g.id));
+                self.stats
+                    .entry(g.id.clone())
+                    .or_insert_with(|| load_stats(&g.id));
                 self.games.push(g);
                 self.games.sort_by_key(|g| g.name.to_lowercase());
             }
@@ -107,7 +109,10 @@ impl Library {
 
 pub fn save_game(g: &Game) -> std::io::Result<()> {
     let s = toml::to_string_pretty(g).map_err(std::io::Error::other)?;
-    write_atomic(&config::games_dir().join(format!("{}.toml", g.id)), s.as_bytes())
+    write_atomic(
+        &config::games_dir().join(format!("{}.toml", g.id)),
+        s.as_bytes(),
+    )
 }
 
 fn stats_path(id: &str) -> PathBuf {
@@ -143,9 +148,10 @@ pub fn running_ids() -> Vec<String> {
         for e in rd.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
             if let Some(id) = name.strip_suffix(".json")
-                && running(id).is_some() {
-                    out.push(id.to_string());
-                }
+                && running(id).is_some()
+            {
+                out.push(id.to_string());
+            }
         }
     }
     out
@@ -167,9 +173,10 @@ pub fn art(g: &Game, kind: Art) -> Option<PathBuf> {
         Art::Logo => &g.logo,
     };
     if let Some(p) = explicit
-        && p.is_file() {
-            return Some(p.clone());
-        }
+        && p.is_file()
+    {
+        return Some(p.clone());
+    }
     let p = art_path(&g.id, kind);
     p.is_file().then_some(p)
 }
@@ -192,7 +199,10 @@ fn remember_removed(g: &Game) {
     keys.extend(dedupe_keys(g));
     keys.sort();
     keys.dedup();
-    let _ = write_atomic(&removed_path(), serde_json::to_string(&keys).unwrap_or_default().as_bytes());
+    let _ = write_atomic(
+        &removed_path(),
+        serde_json::to_string(&keys).unwrap_or_default().as_bytes(),
+    );
 }
 
 pub fn forget_removed() {
@@ -203,9 +213,10 @@ pub fn forget_removed() {
 pub fn dedupe_keys(g: &Game) -> Vec<String> {
     let mut k = vec![];
     if let Some(a) = g.steam_appid
-        && (g.source == Source::Steam || g.runner == crate::model::RunnerKind::Steam) {
-            k.push(format!("steam:{a}"));
-        }
+        && (g.source == Source::Steam || g.runner == crate::model::RunnerKind::Steam)
+    {
+        k.push(format!("steam:{a}"));
+    }
     if let Some(e) = &g.exe {
         k.push(format!("exe:{}", norm(e).display()));
     }

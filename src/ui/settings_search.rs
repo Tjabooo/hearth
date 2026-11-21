@@ -4,8 +4,8 @@
 //! is searchable without a separate index, and options hidden by the current runner stay hidden.
 
 use super::label;
-use gtk4 as gtk;
 use gtk::{glib, prelude::*};
+use gtk4 as gtk;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -32,7 +32,12 @@ struct Hit {
 
 /// Adds the search box to the top of `side` and a results page to `stack`. Typing anywhere in
 /// `capture` (when no text field has focus) starts a search.
-pub fn attach(side: &gtk::Box, stack: &gtk::Stack, capture: &impl IsA<gtk::Widget>, sections: Vec<Section>) {
+pub fn attach(
+    side: &gtk::Box,
+    stack: &gtk::Stack,
+    capture: &impl IsA<gtk::Widget>,
+    sections: Vec<Section>,
+) {
     let sections = Rc::new(sections);
     let entry = gtk::SearchEntry::new();
     entry.set_placeholder_text(Some("Search settings"));
@@ -53,7 +58,10 @@ pub fn attach(side: &gtk::Box, stack: &gtk::Stack, capture: &impl IsA<gtk::Widge
         let side = side.clone();
         move || {
             side.remove_css_class("searching");
-            let i = sections.iter().position(|s| s.button.has_css_class("active")).unwrap_or(0);
+            let i = sections
+                .iter()
+                .position(|s| s.button.has_css_class("active"))
+                .unwrap_or(0);
             if let Some(s) = sections.get(i) {
                 stack.set_visible_child_name(&s.name);
             }
@@ -70,7 +78,15 @@ pub fn attach(side: &gtk::Box, stack: &gtk::Stack, capture: &impl IsA<gtk::Widge
 
     let first: Rc<std::cell::RefCell<Option<gtk::Button>>> = Rc::default();
     {
-        let (stack, sections, list, sc, first, back, side) = (stack.clone(), sections.clone(), list.clone(), sc.clone(), first.clone(), back.clone(), side.clone());
+        let (stack, sections, list, sc, first, back, side) = (
+            stack.clone(),
+            sections.clone(),
+            list.clone(),
+            sc.clone(),
+            first.clone(),
+            back.clone(),
+            side.clone(),
+        );
         entry.connect_search_changed(move |e| {
             let q = e.text().trim().to_lowercase();
             if q.is_empty() {
@@ -100,7 +116,13 @@ pub fn attach(side: &gtk::Box, stack: &gtk::Stack, capture: &impl IsA<gtk::Widge
     });
 }
 
-fn fill(list: &gtk::Box, sections: &Rc<Vec<Section>>, q: &str, first: &Rc<std::cell::RefCell<Option<gtk::Button>>>, entry: &gtk::SearchEntry) {
+fn fill(
+    list: &gtk::Box,
+    sections: &Rc<Vec<Section>>,
+    q: &str,
+    first: &Rc<std::cell::RefCell<Option<gtk::Button>>>,
+    entry: &gtk::SearchEntry,
+) {
     while let Some(c) = list.first_child() {
         list.remove(&c);
     }
@@ -110,15 +132,23 @@ fn fill(list: &gtk::Box, sections: &Rc<Vec<Section>>, q: &str, first: &Rc<std::c
     let total = hits.len();
     hits.truncate(MAX_HITS);
 
-    let head = label(&match total {
-        0 => "No results".to_string(),
-        1 => "1 result".to_string(),
-        n if n > MAX_HITS => format!("{MAX_HITS} of {n} results"),
-        n => format!("{n} results"),
-    }, "page-title");
+    let head = label(
+        &match total {
+            0 => "No results".to_string(),
+            1 => "1 result".to_string(),
+            n if n > MAX_HITS => format!("{MAX_HITS} of {n} results"),
+            n => format!("{n} results"),
+        },
+        "page-title",
+    );
     list.append(&head);
     if total == 0 {
-        let s = label(&format!("Nothing matches \u{201c}{q}\u{201d}. Try a shorter word, like \u{201c}fps\u{201d} or \u{201c}prefix\u{201d}."), "page-sub");
+        let s = label(
+            &format!(
+                "Nothing matches \u{201c}{q}\u{201d}. Try a shorter word, like \u{201c}fps\u{201d} or \u{201c}prefix\u{201d}."
+            ),
+            "page-sub",
+        );
         s.set_wrap(true);
         list.append(&s);
     }
@@ -166,14 +196,17 @@ fn jump(sections: &Rc<Vec<Section>>, i: usize, row: Option<gtk::Widget>, entry: 
         };
         if let Some(p) = row.compute_point(&page, &gtk::graphene::Point::zero()) {
             let adj = scroll.vadjustment();
-            let y = (p.y() as f64 - adj.page_size() * 0.3).clamp(0.0, (adj.upper() - adj.page_size()).max(0.0));
+            let y = (p.y() as f64 - adj.page_size() * 0.3)
+                .clamp(0.0, (adj.upper() - adj.page_size()).max(0.0));
             adj.set_value(y);
         }
         row.add_css_class("search-flash");
         if let Some(w) = focusable(&row) {
             w.grab_focus();
         }
-        glib::timeout_add_local_once(Duration::from_millis(1400), move || row.remove_css_class("search-flash"));
+        glib::timeout_add_local_once(Duration::from_millis(1400), move || {
+            row.remove_css_class("search-flash")
+        });
     });
 }
 
@@ -201,15 +234,38 @@ fn collect(sections: &[Section], terms: &[&str]) -> Vec<Hit> {
         let title = first_text(s.page.upcast_ref(), "page-title").unwrap_or_else(|| s.name.clone());
         let sub = first_text(s.page.upcast_ref(), "page-sub").unwrap_or_default();
         if let Some(score) = score(&title, &format!("{} {sub}", s.name), terms) {
-            hits.push(Hit { section: i, row: None, name: title.clone(), crumb: "SECTION".into(), help: sub, score: score + 5 });
+            hits.push(Hit {
+                section: i,
+                row: None,
+                name: title.clone(),
+                crumb: "SECTION".into(),
+                help: sub,
+                score: score + 5,
+            });
         }
         let mut group = String::new();
-        walk(s.page.upcast_ref(), &mut group, &mut |row, name, help, group| {
-            let crumb = if group.is_empty() { s.name.clone() } else { format!("{}  \u{203a}  {}", s.name, group) };
-            if let Some(sc) = score(name, &format!("{help} {group} {} {title}", s.name), terms) {
-                hits.push(Hit { section: i, row: Some(row.clone()), name: name.to_string(), crumb, help: help.to_string(), score: sc });
-            }
-        });
+        walk(
+            s.page.upcast_ref(),
+            &mut group,
+            &mut |row, name, help, group| {
+                let crumb = if group.is_empty() {
+                    s.name.clone()
+                } else {
+                    format!("{}  \u{203a}  {}", s.name, group)
+                };
+                if let Some(sc) = score(name, &format!("{help} {group} {} {title}", s.name), terms)
+                {
+                    hits.push(Hit {
+                        section: i,
+                        row: Some(row.clone()),
+                        name: name.to_string(),
+                        crumb,
+                        help: help.to_string(),
+                        score: sc,
+                    });
+                }
+            },
+        );
     }
     hits
 }
@@ -242,7 +298,10 @@ fn walk(w: &gtk::Widget, group: &mut String, f: &mut dyn FnMut(&gtk::Widget, &st
 fn first_text(w: &gtk::Widget, class: &str) -> Option<String> {
     let mut c = w.first_child();
     while let Some(x) = c {
-        if let Some(l) = x.downcast_ref::<gtk::Label>().filter(|_| x.has_css_class(class)) {
+        if let Some(l) = x
+            .downcast_ref::<gtk::Label>()
+            .filter(|_| x.has_css_class(class))
+        {
             return Some(l.text().to_string());
         }
         if let Some(t) = first_text(&x, class) {
@@ -279,7 +338,13 @@ fn score(name: &str, extra: &str, terms: &[&str]) -> Option<u32> {
 }
 
 fn word_start(hay: &str, t: &str) -> bool {
-    hay.match_indices(t).any(|(i, _)| i == 0 || !hay[..i].chars().next_back().is_some_and(char::is_alphanumeric))
+    hay.match_indices(t).any(|(i, _)| {
+        i == 0
+            || !hay[..i]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_alphanumeric)
+    })
 }
 
 /// Pango markup with the matched terms highlighted.
@@ -316,7 +381,9 @@ fn push(out: &mut String, seg: &str, hl: bool) {
     }
     let e = glib::markup_escape_text(seg);
     if hl {
-        out.push_str(&format!("<span foreground=\"#ff8c1a\" weight=\"bold\">{e}</span>"));
+        out.push_str(&format!(
+            "<span foreground=\"#ff8c1a\" weight=\"bold\">{e}</span>"
+        ));
     } else {
         out.push_str(&e);
     }
