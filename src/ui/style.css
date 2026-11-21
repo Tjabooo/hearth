@@ -1,0 +1,331 @@
+/* hearth — "ember" theme. Square panels, thin warm lines, a 3px orange bar on top of every
+   surface, bold caps tags, hover = panel + 3px accent edge on the left. No looping animations
+   and no letter-spacing (GTK measures labels without it). */
+
+@define-color bg      #120d0a;
+@define-color panel   #1b1410;
+@define-color raised  #231a14;
+@define-color line    #3a2c22;
+@define-color fg      #d8cbbf;
+@define-color sub     #b2a397;
+@define-color dim     #7a675a;
+@define-color orange  #ff8c1a;
+@define-color gold    #f5a524;
+@define-color red     #e5484d;
+@define-color ember   #ff4d1f;
+
+* {
+  font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace;
+  font-size: 12px;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+  outline: none;
+}
+*:focus-visible { outline: 1px solid alpha(@gold, 0.7); outline-offset: -1px; }
+
+window, window.background, .hearth {
+  background-color: @bg;
+  color: @fg;
+}
+
+window.dialog-window, window.hearth {
+  border: 1px solid @line;
+}
+
+/* ── title bar / header ─────────────────────────────────── */
+.titlebar { background: none; border: none; padding: 0; min-height: 0; }
+.topbar {
+  background-color: @bg;
+  border-top: 3px solid @orange;
+  border-bottom: 1px solid @line;
+  padding: 8px 14px;
+  min-height: 0;
+}
+.brand { font-size: 22px; font-weight: 800; color: @orange; }
+.brand-sm { font-size: 14px; font-weight: 800; color: @orange; }
+.head-sep { min-width: 2px; background-color: @line; margin: 4px 14px; }
+.sys { font-size: 11px; color: @dim; }
+.sys-hot { font-size: 11px; color: @gold; font-weight: 700; }
+
+/* ── buttons ────────────────────────────────────────────── */
+button {
+  background: none;
+  background-color: transparent;
+  border: 1px solid @line;
+  color: @fg;
+  padding: 5px 11px;
+  min-height: 0;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 11px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+button:hover { background-color: @raised; border-color: @dim; }
+button:active { background-color: @line; }
+button:disabled { color: @dim; border-color: alpha(@line, 0.6); }
+button.flat { border-color: transparent; }
+button.flat:hover { border-color: @line; }
+
+button.accent { background-color: @orange; border-color: @orange; color: @bg; }
+button.accent:hover { background-color: @gold; border-color: @gold; }
+button.danger { color: @red; border-color: alpha(@red, 0.5); }
+button.danger:hover { background-color: alpha(@red, 0.15); border-color: @red; }
+button.close { padding: 2px 8px; border-color: transparent; color: @dim; }
+button.close:hover { color: @red; border-color: @red; background-color: transparent; }
+
+button.play {
+  background-color: @orange;
+  border: none;
+  color: @bg;
+  font-size: 17px;
+  font-weight: 800;
+  padding: 11px 26px;
+}
+button.play:hover { background-color: @gold; }
+button.play.stop { background-color: @red; color: @bg; }
+button.play.stop:hover { background-color: #f06a6e; }
+button.play.starting { background-color: @line; color: @gold; }
+button.play:disabled { background-color: @panel; color: @dim; }
+
+button.icon { padding: 8px 11px; font-size: 15px; }
+button.icon.on { color: @gold; border-color: @gold; }
+
+button.chip { padding: 4px 9px; font-size: 10px; color: @sub; }
+button.chip:hover { color: @fg; }
+
+/* ── entries / dropdowns / text ──────────────────────────── */
+entry, textview {
+  background-color: @panel;
+  color: @fg;
+  border: 1px solid @line;
+  caret-color: @orange;
+}
+entry > text { background: none; border: none; padding: 0; }
+entry:focus-visible, entry > text:focus-visible { outline: none; }
+entry { padding: 5px 8px; min-height: 0; }
+entry:focus-within, textview:focus-within { border-color: @orange; }
+entry placeholder, text placeholder { color: @dim; }
+entry image { color: @dim; margin-right: 6px; }
+textview text { background-color: @panel; color: @fg; }
+textview { padding: 5px 7px; }
+selection, entry selection, text selection { background-color: alpha(@orange, 0.35); color: @fg; }
+
+entry.search { min-width: 300px; background-color: @bg; }
+
+dropdown > button { padding: 5px 9px; }
+dropdown > button > box > arrow, dropdown arrow { color: @dim; min-width: 12px; min-height: 12px; }
+popover, popover.menu { background: none; }
+popover > contents {
+  background-color: @bg;
+  border: 1px solid @line;
+  border-top: 3px solid @orange;
+  padding: 4px;
+  color: @fg;
+}
+popover listview, popover list { background-color: transparent; }
+popover listview > row, popover list > row { padding: 5px 9px; color: @fg; }
+popover listview > row:hover, popover list > row:hover { background-color: @raised; }
+popover listview > row:selected, popover list > row:selected { background-color: @raised; color: @orange; }
+popover arrow { background-color: transparent; }
+popover > arrow { background: none; border: none; }
+
+checkbutton { color: @fg; }
+checkbutton check {
+  background-color: @panel; border: 1px solid @line; min-width: 13px; min-height: 13px; margin-right: 7px;
+}
+checkbutton check:checked { background-color: @orange; border-color: @orange; color: @bg; }
+
+switch { background-color: @panel; border: 1px solid @line; min-width: 36px; min-height: 16px; }
+switch:checked { background-color: @orange; border-color: @orange; }
+switch slider { background-color: @fg; min-width: 16px; min-height: 16px; margin: 1px; border: none; }
+switch:checked slider { background-color: @bg; }
+
+/* ── scrollbars: thin warm rails ─────────────────────────── */
+scrollbar { background-color: transparent; border: none; }
+scrollbar slider { background-color: @line; min-width: 4px; min-height: 4px; border: none; margin: 2px; }
+scrollbar slider:hover { background-color: @dim; }
+scrollbar.vertical slider { min-height: 36px; }
+scrolledwindow undershoot, scrolledwindow overshoot { background: none; }
+
+/* ── sidebar ────────────────────────────────────────────── */
+.sidebar {
+  background-color: @bg;
+  border-right: 1px solid @line;
+  padding: 12px 0 10px 0;
+  min-width: 200px;
+}
+.side-title { font-size: 10px; font-weight: 800; color: @dim; margin: 12px 16px 6px 16px; }
+button.nav {
+  border: none;
+  border-left: 3px solid transparent;
+  padding: 7px 14px 7px 13px;
+  font-size: 12px;
+}
+button.nav:hover { background-color: @panel; border-left-color: @dim; }
+button.nav.active { background-color: @panel; border-left-color: @orange; }
+.nav-idx { font-size: 15px; font-weight: 800; color: @line; margin-right: 10px; }
+button.nav.active .nav-idx { color: @orange; }
+.nav-name { font-weight: 800; }
+.nav-count { font-size: 11px; color: @dim; }
+button.nav.active .nav-count { color: @gold; }
+
+.now-card {
+  background-color: @panel;
+  border-left: 3px solid @gold;
+  margin: 6px 12px;
+  padding: 8px 10px;
+}
+.now-name { font-weight: 800; font-size: 12px; }
+.now-meta { font-size: 10px; color: @gold; }
+
+/* ── grid ───────────────────────────────────────────────── */
+.library { background-color: @bg; }
+.grid-head { padding: 12px 18px 4px 18px; }
+.grid-title { font-size: 15px; font-weight: 800; }
+.grid-count { font-size: 11px; color: @dim; margin-left: 10px; }
+flowbox.grid { padding: 8px 14px 18px 14px; background-color: transparent; }
+flowbox.grid > flowboxchild {
+  padding: 6px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  outline: none;
+}
+flowbox.grid > flowboxchild:hover { background-color: @panel; border-color: @line; }
+flowbox.grid > flowboxchild:selected { background-color: @panel; border-color: @orange; }
+flowbox.grid > flowboxchild:focus-visible { border-color: @gold; }
+
+.cover-frame { background-color: @panel; border: 1px solid @line; }
+flowbox.grid > flowboxchild:selected .cover-frame { border-color: @orange; }
+.cover-fallback {
+  background-image: linear-gradient(160deg, #2a1d14 0%, @panel 55%, #140e0b 100%);
+}
+.fallback-mark { font-size: 40px; font-weight: 800; color: @line; }
+.fallback-name { font-size: 13px; font-weight: 800; color: @sub; margin: 0 12px; }
+.tile-name { font-size: 12px; font-weight: 700; margin-top: 7px; }
+.tile-meta { font-size: 10px; color: @dim; margin-top: 1px; }
+flowbox.grid > flowboxchild:selected .tile-name { color: @orange; }
+
+.lamp {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border: 1px solid @dim;
+  color: @dim;
+  background-color: alpha(@bg, 0.85);
+}
+.lamp.ok { color: @orange; border-color: @orange; }
+.lamp.run { color: @bg; background-color: @gold; border-color: @gold; }
+.lamp.fav { color: @gold; border-color: transparent; background-color: alpha(@bg, 0.7); font-size: 12px; padding: 0 5px; }
+.lamp.idle { color: @dim; border-color: @line; }
+.lamp.warn { color: @bg; background-color: @gold; border-color: @gold; }
+.lamp.fail { color: @bg; background-color: @red; border-color: @red; }
+
+.empty { font-size: 12px; color: @dim; }
+.empty-big { font-size: 18px; font-weight: 800; color: @line; }
+
+/* ── detail pane ────────────────────────────────────────── */
+.detail { background-color: @bg; border-left: 1px solid @line; min-width: 440px; }
+.hero { background-color: @panel; border-top: 3px solid @orange; }
+.hero-shade { background-image: linear-gradient(to bottom, alpha(@bg, 0.0) 35%, alpha(@bg, 0.75) 78%, @bg 100%); }
+.hero-blur { filter: blur(24px) brightness(0.55) saturate(1.2); }
+.hero-plain { background-image: linear-gradient(135deg, #3a1d0c 0%, @panel 45%, @bg 100%); }
+.hero-title { font-size: 24px; font-weight: 800; color: @fg; margin: 0 22px 14px 22px; }
+.hero-logo { margin: 0 22px 12px 22px; }
+.hero-tag { margin: 12px 14px; }
+
+.detail-body { padding: 4px 22px 18px 22px; }
+.rule { min-height: 1px; background-color: @line; margin: 12px 0 9px 0; }
+.rule.hot { background-color: alpha(@orange, 0.35); }
+.k { font-size: 10px; font-weight: 800; color: @dim; min-width: 108px; }
+.v { font-size: 12px; color: @fg; }
+.v.hot { color: @gold; }
+.v.mono { font-size: 11px; color: @sub; }
+.section-label { font-size: 10px; font-weight: 800; color: @dim; margin-bottom: 4px; }
+
+/* ── bottom strip (install jobs + hints) ────────────────── */
+.footbar {
+  border-top: 1px solid @line;
+  background-color: @bg;
+  padding: 5px 14px;
+}
+.hint { font-size: 10px; color: @dim; }
+.key { font-size: 10px; font-weight: 800; color: @bg; background-color: @dim; padding: 0 5px; margin-right: 5px; }
+.job {
+  background-color: @panel;
+  border-left: 3px solid @orange;
+  padding: 6px 10px;
+  margin: 6px 14px 0 14px;
+}
+.job.done { border-left-color: @gold; }
+.job.failed { border-left-color: @red; background-color: #241210; }
+.job-name { font-weight: 800; }
+.job-msg { font-size: 11px; color: @sub; }
+.job-phase { font-size: 10px; font-weight: 800; color: @orange; }
+.job.done .job-phase { color: @gold; }
+.job.failed .job-phase { color: @red; }
+progressbar trough { background-color: @line; min-height: 2px; border: none; }
+progressbar progress { background-color: @orange; min-height: 2px; border: none; }
+
+.toast {
+  background-color: @bg;
+  border: 1px solid @line;
+  border-top: 3px solid @gold;
+  padding: 8px 14px;
+  margin: 18px;
+}
+
+/* ── dialogs ────────────────────────────────────────────── */
+.dialog { background-color: @bg; }
+.dialog-head { border-top: 3px solid @orange; border-bottom: 1px solid @line; padding: 10px 14px; }
+.dialog-title { font-size: 15px; font-weight: 800; color: @orange; }
+.dialog-sub { font-size: 11px; color: @dim; }
+.dialog-body { padding: 16px 18px; }
+.dialog-foot { border-top: 1px solid @line; padding: 10px 14px; }
+.sections { border-right: 1px solid @line; padding: 10px 0; min-width: 170px; }
+.page { padding: 14px 22px 22px 22px; }
+.page-title { font-size: 14px; font-weight: 800; margin-bottom: 2px; }
+.page-sub { font-size: 11px; color: @dim; margin-bottom: 10px; }
+.group-title { font-size: 10px; font-weight: 800; color: @gold; margin: 16px 0 6px 0; }
+.opt { padding: 7px 0; border-bottom: 1px solid alpha(@line, 0.55); }
+.opt-name { font-size: 12px; font-weight: 700; }
+.opt-help { font-size: 10px; color: @dim; }
+.opt-inherit { font-size: 10px; color: @dim; }
+.opt-inherit.set { color: @gold; }
+.note {
+  background-color: @panel;
+  border-left: 3px solid @gold;
+  padding: 9px 12px;
+  color: @sub;
+  font-size: 11px;
+}
+.cmd {
+  background-color: @panel;
+  border: 1px solid @line;
+  padding: 10px 12px;
+  font-size: 11px;
+  color: @sub;
+}
+.tool-ok { color: @orange; font-weight: 800; font-size: 10px; }
+.tool-miss { color: @red; font-weight: 800; font-size: 10px; }
+.target { color: @gold; font-weight: 700; }
+
+/* settings search */
+entry.settings-search { margin: 0 12px 10px 12px; background-color: @bg; }
+button.search-hit {
+  border: none;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid alpha(@line, 0.55);
+  border-radius: 0;
+  padding: 8px 10px;
+  background: none;
+}
+button.search-hit:hover, button.search-hit:focus-visible { background-color: @panel; border-left-color: @orange; }
+.hit-crumb { font-size: 9px; font-weight: 800; color: @gold; }
+.hit-name { font-size: 12px; font-weight: 700; }
+.hit-help { font-size: 10px; color: @dim; }
+.opt.search-flash { background-color: alpha(@orange, 0.14); box-shadow: inset 3px 0 0 @orange; transition: background-color 400ms ease-out; }
+.opt { transition: background-color 600ms ease-out; }
+.sections.searching button.nav.active { background: none; border-left-color: transparent; }
+.sections.searching button.nav.active .nav-idx { color: @line; }

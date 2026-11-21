@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Hearth
+GenericName=Game Launcher
+Comment=Steam, Lutris, repacks and portable games in one library
+Exec=@BIN@
+Icon=dev.hearth.Hearth
+Terminal=false
+Categories=Game;
+Keywords=games;launcher;proton;wine;steam;lutris;
+StartupWMClass=dev.hearth.Hearth
