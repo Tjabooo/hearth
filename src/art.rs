@@ -135,10 +135,11 @@ pub fn fetch_for(g: &Game) -> bool {
             }
         }
     }
-    if missing(Art::Cover) && g.runner != RunnerKind::Steam {
-        if let Some(url) = lutris_cover(&g.name) {
-            any |= curl_to(&url, &art_path(&g.id, Art::Cover));
-        }
+    if missing(Art::Cover)
+        && g.runner != RunnerKind::Steam
+        && let Some(url) = lutris_cover(&g.name)
+    {
+        any |= curl_to(&url, &art_path(&g.id, Art::Cover));
     }
     any |= exe_icon(g);
     any
