@@ -6,6 +6,8 @@ A game launcher for Linux that puts Steam, Lutris, repacks and portable games in
 per-game Proton/Wine, MangoHud, gamemode and gamescope settings, and a one-click "install from .exe".
 Use it as a Lutris alternative, or on top of Lutris: it reads your Lutris and Steam libraries as they are.
 
+![hearth launching Stardew Valley through Steam and loading a save](docs/demo.gif)
+
 ![hearth](docs/screenshot.png)
 
 ## Features
